@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Bibliography Manager (Persistent)</title>
+    <style>
+        :root {
+            --primary: #2980b9;
+            --primary-hover: #1f6391;
+            --bg: #f4f4f9;
+            --card-bg: #ffffff;
+            --text: #333;
+            --border: #ccc;
+            --accent: #27ae60;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { margin-bottom: 20px; color: #2c3e50; text-align: center; }
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 15px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #7f8c8d;
+            border-bottom: 3px solid transparent;
+        }
+        .tab.active {
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        label { display: block; font-weight: 600; margin-bottom: 5px; margin-top: 15px; }
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            font-size: 15px;
+        }
+        textarea { resize: vertical; min-height: 100px; }
+        button {
+            padding: 10px 15px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: 0.2s;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        button.secondary { background-color: #7f8c8d; }
+        button.accent { background-color: var(--accent); }
+        button.small { padding: 5px 10px; font-size: 13px; margin-top: 5px;}
+        
+        .result-item, .bib-item {
+            padding: 15px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            margin-top: 10px;
+            background-color: #fafafa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .result-text { flex: 1; margin-right: 15px; line-height: 1.5; }
+        .controls-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+        
+        #customFormatContainer {
+            width: 100%;
+            background: #eef2f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border: 1px dashed #2980b9;
+        }
+        .tag-cloud { margin-bottom: 10px; }
+        .tag-btn {
+            background: white;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+        .tag-btn:hover { background: var(--primary); color: white; }
+
+        .loading { color: var(--primary); font-weight: bold; display: none; margin-top: 10px;}
+        hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .type-badge {
+            font-size: 10px;
+            text-transform: uppercase;
+            background: #eee;
+            padding: 2px 5px;
+            border-radius: 3px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Pro Bibliography Manager</h1>
+    
+    <div class="container">
+        <!-- TOP SECTION -->
+        <div class="card">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('search')">1. Smart Search</div>
+                <div class="tab" onclick="switchTab('batch')">2. Batch / BibTeX</div>
+                <div class="tab" onclick="switchTab('manual')">3. Manual Entry</div>
+            </div>
+
+            <!-- Tab 1: Search -->
+            <div id="tab-search" class="tab-content active">
+                <p>Search CrossRef (Press Enter to search).</p>
+                <input type="text" id="searchInput" placeholder="DOI or Title..." onkeydown="if(event.key==='Enter') searchCrossRef()">
+                <button onclick="searchCrossRef()">Search</button>
+                <div id="searchLoading" class="loading">Searching...</div>
+                <div id="searchResults"></div>
+            </div>
+
+            <!-- Tab 2: Batch/BibTeX -->
+            <div id="tab-batch" class="tab-content">
+                <p>Paste a list of references <b>OR</b> raw BibTeX code (e.g. from Google Scholar).</p>
+                <textarea id="batchInput" placeholder="@article{...} or Doe, J. (2020)..."></textarea>
+                <div style="display:flex; gap: 10px;">
+                    <button onclick="parseBatch()">Process Text</button>
+                    <button class="secondary" onclick="document.getElementById('bibFileInput').click()">Upload .bib File</button>
+                    <input type="file" id="bibFileInput" style="display:none" accept=".bib" onchange="importBibFile(event)">
+                </div>
+            </div>
+
+            <!-- Tab 3: Manual Entry -->
+            <div id="tab-manual" class="tab-content">
+                <label>Reference Type</label>
+                <select id="m_type" onchange="toggleManualFields()">
+                    <option value="journal">Journal Article</option>
+                    <option value="book">Book</option>
+                    <option value="web">Web Site</option>
+                    <option value="conference">Conference Proceeding</option>
+                </select>
+
+                <label>Authors (comma separated)</label>
+                <input type="text" id="m_authors" placeholder="Smith J, Doe A">
+                
+                <div class="grid-2">
+                    <div><label>Year</label><input type="text" id="m_year"></div>
+                    <div><label>Title</label><input type="text" id="m_title"></div>
+                    <div class="f-journal f-conf"><label id="lbl_container">Journal/Container</label><input type="text" id="m_journal"></div>
+                    <div class="f-journal"><label>Volume</label><input type="text" id="m_volume"></div>
+                    <div class="f-journal"><label>Issue</label><input type="text" id="m_issue"></div>
+                    <div class="f-journal f-conf"><label>Pages</label><input type="text" id="m_pages"></div>
+                    <div class="f-book" style="display:none;"><label>Publisher</label><input type="text" id="m_publisher"></div>
+                    <div class="f-book" style="display:none;"><label>City</label><input type="text" id="m_city"></div>
+                    <div class="f-web" style="display:none;"><label>URL</label><input type="text" id="m_url"></div>
+                    <div style="grid-column: span 2;"><label>DOI</label><input type="text" id="m_doi"></div>
+                </div>
+                <button onclick="addManual()">Add to Library</button>
+            </div>
+        </div>
+
+        <!-- BOTTOM SECTION: Library -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>My Bibliography (<span id="libCount">0</span>)</h2>
+                <div style="display: flex; gap: 5px;">
+                    <button class="small secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
+                    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importJSON(event)">
+                    <button class="small accent" onclick="exportJSON()">Export JSON</button>
+                </div>
+            </div>
+
+            <div class="controls-row">
+                <div>
+                    <label>Sort By</label>
+                    <select id="sortSelect" onchange="renderLibrary()">
+                        <option value="year-desc">Year (Newest)</option>
+                        <option value="year-asc">Year (Oldest)</option>
+                        <option value="author-asc">Author (A-Z)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Output Format</label>
+                    <select id="formatSelect" onchange="handleFormatChange()">
+                        <option value="apa">APA 7th</option>
+                        <option value="mla">MLA 9th</option>
+                        <option value="chicago">Chicago</option>
+                        <option value="ieee">IEEE</option>
+                        <optgroup label="Custom Styles" id="customStylesGroup"></optgroup>
+                        <option value="custom">⚙️ Create/Edit Template...</option>
+                    </select>
+                </div>
+                <button class="secondary" style="margin-left:auto;" onclick="clearLibrary()">Clear All</button>
+            </div>
+            
+            <div id="customFormatContainer" style="display: none;">
+                <label style="margin-top: 0;">Template Editor:</label>
+                <div class="tag-cloud">
+                    <span class="tag-btn" onclick="insertTag('authors')">{authors}</span>
+                    <span class="tag-btn" onclick="insertTag('year')">{year}</span>
+                    <span class="tag-btn" onclick="insertTag('title')">{title}</span>
+                    <span class="tag-btn" onclick="insertTag('journal')">{journal}</span>
+                    <span class="tag-btn" onclick="insertTag('volume')">{volume}</span>
+                    <span class="tag-btn" onclick="insertTag('pages')">{pages}</span>
+                    <span class="tag-btn" onclick="insertTag('publisher')">{publisher}</span>
+                    <span class="tag-btn" onclick="insertTag('doi')">{doi}</span>
+                </div>
+                <input type="text" id="customFormatInput" placeholder="Example: {authors} ({year}). {title}. <i>{journal}</i>" oninput="renderLibrary()">
+                <div class="template-manager">
+                    <input type="text" id="templateName" placeholder="Style Name" style="width: 200px;">
+                    <button class="small" onclick="saveTemplate()">Save Template</button>
+                </div>
+            </div>
+            
+            <hr>
+            <div id="libraryOutput"></div>
+        </div>
+    </div>
+
+<script>
+    // --- STATE & PERSISTENCE ---
+    let bibData = {
+        items: [],
+        templates: {
+            "Simple Journal": "{authors} ({year}). {title}. <i>{journal}</i>, {volume}."
+        }
+    };
+
+    // Load from LocalStorage on Startup
+    window.onload = () => {
+        const saved = localStorage.getItem('bib_manager_data');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                bibData.items = parsed.items || [];
+                bibData.templates = parsed.templates || bibData.templates;
+            } catch(e) { console.error("Failed to load saved data"); }
+        }
+        updateFormatDropdown();
+        toggleManualFields();
+        renderLibrary();
+    };
+
+    function saveToStorage() {
+        localStorage.setItem('bib_manager_data', JSON.stringify(bibData));
+    }
+
+    // --- TABS & UI ---
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+
+    function toggleManualFields() {
+        const type = document.getElementById('m_type').value;
+        const grids = ['f-journal', 'f-book', 'f-web', 'f-conf'];
+        grids.forEach(g => {
+            document.querySelectorAll('.' + g).forEach(el => {
+                el.style.display = el.classList.contains('f-' + type) ? 'block' : 'none';
+            });
+        });
+    }
+
+    // --- BIBTEX PARSER (The "Robust" Part) ---
+    function parseBibTeX(text) {
+        const entries = [];
+        const regex = /@(\w+)\s*\{\s*([^,]+),([\s\S]*?)\n\s*\}/g;
+        let match;
+
+        while ((match = regex.exec(text)) !== null) {
+            const type = match[1].toLowerCase();
+            const content = match[3];
+            const entry = { id: Date.now() + Math.random().toString(), type: 'journal' };
+            
+            // Map types
+            if (type === 'book') entry.type = 'book';
+            if (type === 'inproceedings' || type === 'proceedings') entry.type = 'conference';
+
+            // Extract fields using a second regex
+            const fieldRegex = /(\w+)\s*=\s*[{\"](.*?)[}\"]/g;
+            let fMatch;
+            while ((fMatch = fieldRegex.exec(content)) !== null) {
+                const key = fMatch[1].toLowerCase();
+                let val = fMatch[2].replace(/[\{\}]/g, ""); // Remove LaTeX braces
+                
+                if (key === 'author') entry.authors = val.replace(/\s+and\s+/g, "; ");
+                else if (key === 'title') entry.title = val;
+                else if (key === 'year') entry.year = val;
+                else if (key === 'journal' || key === 'booktitle') entry.journal = val;
+                else if (key === 'volume') entry.volume = val;
+                else if (key === 'number') entry.issue = val;
+                else if (key === 'pages') entry.pages = val;
+                else if (key === 'doi') entry.doi = val;
+                else if (key === 'publisher') entry.publisher = val;
+            }
+            entries.push(entry);
+        }
+        return entries;
+    }
+
+    function importBibFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const bibs = parseBibTeX(e.target.result);
+            if (bibs.length > 0) {
+                bibData.items = [...bibData.items, ...bibs];
+                saveToStorage();
+                renderLibrary();
+                alert(`Imported ${bibs.length} BibTeX entries!`);
+            } else {
+                alert("No valid BibTeX found in file.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function parseBatch() {
+        const text = document.getElementById('batchInput').value;
+        if (text.includes('@')) {
+            const bibs = parseBibTeX(text);
+            bibData.items = [...bibData.items, ...bibs];
+        } else {
+            // Fallback to simple line-by-line parsing
+            const lines = text.split('\n').filter(l => l.trim().length > 5);
+            lines.forEach(line => {
+                let year = (line.match(/\b(19|20)\d{2}\b/) || [''])[0];
+                bibData.items.push({
+                    id: Date.now() + Math.random().toString(),
+                    type: 'journal', authors: line.split(/[(\.]/)[0].trim(),
+                    year: year, title: "Parsed (Please Edit)", journal: line
+                });
+            });
+        }
+        saveToStorage();
+        renderLibrary();
+    }
+
+    // --- TEMPLATE LOGIC ---
+    function insertTag(tag) {
+        const input = document.getElementById('customFormatInput');
+        input.value += `{${tag}}`;
+        renderLibrary();
+    }
+
+    function handleFormatChange() {
+        const val = document.getElementById('formatSelect').value;
+        const container = document.getElementById('customFormatContainer');
+        if (val === 'custom') {
+            container.style.display = 'block';
+        } else if (bibData.templates[val]) {
+            container.style.display = 'block';
+            document.getElementById('customFormatInput').value = bibData.templates[val];
+            document.getElementById('templateName').value = val;
+        } else {
+            container.style.display = 'none';
+        }
+        renderLibrary();
+    }
+
+    function saveTemplate() {
+        const name = document.getElementById('templateName').value.trim();
+        const str = document.getElementById('customFormatInput').value.trim();
+        if(!name || !str) return;
+        bibData.templates[name] = str;
+        updateFormatDropdown();
+        document.getElementById('formatSelect').value = name;
+        saveToStorage();
+        alert("Style saved locally!");
+    }
+
+    function updateFormatDropdown() {
+        const group = document.getElementById('customStylesGroup');
+        group.innerHTML = '';
+        for (let name in bibData.templates) {
+            let opt = document.createElement('option');
+            opt.value = name; opt.innerText = name;
+            group.appendChild(opt);
+        }
+    }
+
+    // --- CROSSREF & MANUAL ---
+    async function searchCrossRef() {
+        const query = document.getElementById('searchInput').value.trim();
+        if(!query) return;
+        const loading = document.getElementById('searchLoading');
+        const resultsDiv = document.getElementById('searchResults');
+        loading.style.display = 'block'; resultsDiv.innerHTML = '';
+
+        try {
+            const response = await fetch(`https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(query)}&rows=5`);
+            const data = await response.json();
+            data.message.items.forEach(item => {
+                const refObj = mapCrossRefToInternal(item);
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `
+                    <div class="result-text"><strong>${refObj.title}</strong><br><small>${refObj.authors} (${refObj.year})</small></div>
+                    <button class="small" onclick='addToLibrary(${JSON.stringify(refObj).replace(/'/g, "&#39;")})'>Add</button>`;
+                resultsDiv.appendChild(div);
+            });
+        } catch (e) { resultsDiv.innerHTML = `<p>Search failed.</p>`; }
+        finally { loading.style.display = 'none'; }
+    }
+
+    function mapCrossRefToInternal(item) {
+        return {
+            id: Date.now() + Math.random().toString(),
+            type: item.type?.includes("book") ? "book" : "journal",
+            authors: (item.author || []).map(a => `${a.family}, ${a.given || ''}`).join('; ') || 'Unknown',
+            year: item.issued?.['date-parts']?.[0]?.[0] || 'n.d.',
+            title: item.title?.[0] || 'Untitled',
+            journal: item['container-title']?.[0] || '',
+            volume: item.volume || '', issue: item.issue || '', pages: item.page || '',
+            doi: item.DOI || '', publisher: item.publisher || ''
+        };
+    }
+
+    function addManual() {
+        const ref = {
+            id: Date.now() + Math.random().toString(),
+            type: document.getElementById('m_type').value,
+            authors: document.getElementById('m_authors').value,
+            year: document.getElementById('m_year').value,
+            title: document.getElementById('m_title').value,
+            journal: document.getElementById('m_journal').value,
+            volume: document.getElementById('m_volume').value,
+            issue: document.getElementById('m_issue').value,
+            pages: document.getElementById('m_pages').value,
+            publisher: document.getElementById('m_publisher').value,
+            doi: document.getElementById('m_doi').value
+        };
+        addToLibrary(ref);
+    }
+
+    function addToLibrary(obj) { 
+        bibData.items.push(obj); 
+        saveToStorage(); 
+        renderLibrary(); 
+    }
+
+    function removeRef(id) { 
+        bibData.items = bibData.items.filter(r => r.id !== id); 
+        saveToStorage(); 
+        renderLibrary(); 
+    }
+
+    function clearLibrary() { 
+        if(confirm("Delete all data?")) { bibData.items = []; saveToStorage(); renderLibrary(); } 
+    }
+
+    // --- RENDERING ---
+    function renderLibrary() {
+        document.getElementById('libCount').innerText = bibData.items.length;
+        const output = document.getElementById('libraryOutput');
+        output.innerHTML = '';
+
+        const sortVal = document.getElementById('sortSelect').value;
+        bibData.items.sort((a, b) => {
+            if (sortVal === 'year-desc') return (parseInt(b.year) || 0) - (parseInt(a.year) || 0);
+            if (sortVal === 'year-asc') return (parseInt(a.year) || 0) - (parseInt(b.year) || 0);
+            return (a.authors || "").localeCompare(b.authors || "");
+        });
+
+        const formatStyle = document.getElementById('formatSelect').value;
+
+        bibData.items.forEach((ref, index) => {
+            let str = '';
+            if (formatStyle === 'custom' || bibData.templates[formatStyle]) {
+                let template = document.getElementById('customFormatInput').value;
+                str = template.replace(/{(\w+)}/g, (m, key) => ref[key] || '');
+            } else {
+                str = formatStandard(ref, formatStyle, index);
+            }
+            const div = document.createElement('div');
+            div.className = 'bib-item';
+            div.innerHTML = `<div class="result-text">${str}</div><button class="small secondary" onclick="removeRef('${ref.id}')">Remove</button>`;
+            output.appendChild(div);
+        });
+    }
+
+    function formatStandard(ref, style, index) {
+        if (style === 'apa') {
+            return `${ref.authors} (${ref.year}). ${ref.title}. <i>${ref.journal || ref.publisher}</i>. ${ref.doi ? 'doi:'+ref.doi : ''}`;
+        } 
+        if (style === 'ieee') {
+            return `[${index+1}] ${ref.authors}, "${ref.title}," <i>${ref.journal || ref.publisher}</i>, ${ref.year}.`;
+        }
+        return `${ref.authors} (${ref.year}). "${ref.title}." ${ref.journal || ref.publisher}.`;
+    }
+
+    function exportJSON() {
+        const blob = new Blob([JSON.stringify(bibData, null, 2)], {type : 'application/json'});
+        const anchor = document.createElement('a');
+        anchor.href = URL.createObjectURL(blob);
+        anchor.download = "bibliography_export.json";
+        anchor.click();
+    }
+
+    function importJSON(event) {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = JSON.parse(e.target.result);
+            bibData = data;
+            saveToStorage();
+            updateFormatDropdown();
+            renderLibrary();
+        };
+        reader.readAsText(file);
+    }
+</script>
+</body>
+</html>
+
