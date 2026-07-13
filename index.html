@@ -505,7 +505,18 @@
             let str = '';
             if (formatStyle === 'custom' || bibData.templates[formatStyle]) {
                 let template = document.getElementById('customFormatInput').value;
-                str = template.replace(/{(\w+)}/g, (m, key) => ref[key] || '');
+                
+                // 1. Inject variables (default to empty string if missing)
+                str = template.replace(/{(\w+)}/g, (m, key) => ref[key] ? ref[key].trim() : '');
+                
+                // 2. Clean up the orphaned punctuation
+                str = str.replace(/<[^>]+>\s*<\/[^>]+>/g, '') // Remove empty HTML tags (e.g., if <i>{journal}</i> is empty)
+                         .replace(/\(\s*\)/g, '')             // Remove empty parentheses like ()
+                         .replace(/[,;:]\s*(?=[.,;])/g, '')   // Remove stray commas/colons sitting right before a period
+                         .replace(/\.\s*\./g, '.')            // Collapse double periods into a single period
+                         .replace(/\s+([.,;:])/g, '$1')       // Remove awkward spaces right before punctuation
+                         .replace(/\s{2,}/g, ' ')             // Collapse multiple consecutive spaces into one
+                         .replace(/^[.,\s]+|[.,\s]+$/g, '');  // Trim trailing/leading punctuation from the very ends
             } else {
                 str = formatStandard(ref, formatStyle, index);
             }
