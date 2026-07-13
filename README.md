@@ -38,7 +38,7 @@ From the terminal in the file's directory, run: `python -m http.server 8000` and
 
 ## License
 
-*MIT License*
+MIT License
 
 ## Credits
 
