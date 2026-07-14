@@ -523,10 +523,11 @@
             return `${ref.authors} (${ref.year}). ${ref.title}. <i>${ref.journal || ref.publisher}</i>. ${ref.doi ? 'doi:'+ref.doi : ''}`;
         } 
         if (style === 'ieee') {
-            return `[${index+1}] ${ref.authors}, "${ref.title}," <i>${ref.journal || ref.publisher}</i>, ${ref.year}.`;
+            return `[${index+1}] ${ref.authors}, "${ref.title}", <i>${ref.journal || ref.publisher}</i>, ${ref.year}.`;
         }
-        return `${ref.authors} (${ref.year}). "${ref.title}." ${ref.journal || ref.publisher}.`;
+        return `${ref.authors} (${ref.year}). "${ref.title}". ${ref.journal || ref.publisher}.`;
     }
+
 
     function exportJSON() {
         const blob = new Blob([JSON.stringify(bibData, null, 2)], {type : 'application/json'});
