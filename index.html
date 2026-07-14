@@ -137,7 +137,6 @@
     <h1>Pro Bibliography Manager</h1>
     
     <div class="container">
-        <!-- TOP SECTION -->
         <div class="card">
             <div class="tabs">
                 <div class="tab active" onclick="switchTab('search')">1. Smart Search</div>
@@ -145,7 +144,6 @@
                 <div class="tab" onclick="switchTab('manual')">3. Manual Entry</div>
             </div>
 
-            <!-- Tab 1: Search -->
             <div id="tab-search" class="tab-content active">
                 <p>Search CrossRef (Press Enter to search).</p>
                 <input type="text" id="searchInput" placeholder="DOI or Title..." onkeydown="if(event.key==='Enter') searchCrossRef()">
@@ -154,7 +152,6 @@
                 <div id="searchResults"></div>
             </div>
 
-            <!-- Tab 2: Batch/BibTeX -->
             <div id="tab-batch" class="tab-content">
                 <p>Paste a list of references <b>OR</b> raw BibTeX code (e.g. from Google Scholar).</p>
                 <textarea id="batchInput" placeholder="@article{...} or Doe, J. (2020)..."></textarea>
@@ -165,7 +162,6 @@
                 </div>
             </div>
 
-            <!-- Tab 3: Manual Entry -->
             <div id="tab-manual" class="tab-content">
                 <label>Reference Type</label>
                 <select id="m_type" onchange="toggleManualFields()">
@@ -194,10 +190,9 @@
             </div>
         </div>
 
-        <!-- BOTTOM SECTION: Library -->
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2>My Bibliography (<span id="libCount">0</span>)</h2>
+                <h2>Bibliography Library (<span id="libCount">0</span>)</h2>
                 <div style="display: flex; gap: 5px;">
                     <button class="small secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
                     <input type="file" id="importFile" style="display:none" accept=".json" onchange="importJSON(event)">
@@ -253,7 +248,6 @@
     </div>
 
 <script>
-    // --- STATE & PERSISTENCE ---
     let bibData = {
         items: [],
         templates: {
@@ -261,7 +255,6 @@
         }
     };
 
-    // Load from LocalStorage on Startup
     window.onload = () => {
         const saved = localStorage.getItem('bib_manager_data');
         if (saved) {
@@ -280,7 +273,6 @@
         localStorage.setItem('bib_manager_data', JSON.stringify(bibData));
     }
 
-    // --- TABS & UI ---
     function switchTab(tabId) {
         document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
         document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
@@ -297,7 +289,6 @@
         });
     }
 
-    // --- BIBTEX PARSER (The "Robust" Part) ---
     function parseBibTeX(text) {
         const entries = [];
         const regex = /@(\w+)\s*\{\s*([^,]+),([\s\S]*?)\n\s*\}/g;
@@ -308,16 +299,14 @@
             const content = match[3];
             const entry = { id: Date.now() + Math.random().toString(), type: 'journal' };
             
-            // Map types
             if (type === 'book') entry.type = 'book';
             if (type === 'inproceedings' || type === 'proceedings') entry.type = 'conference';
 
-            // Extract fields using a second regex
             const fieldRegex = /(\w+)\s*=\s*[{\"](.*?)[}\"]/g;
             let fMatch;
             while ((fMatch = fieldRegex.exec(content)) !== null) {
                 const key = fMatch[1].toLowerCase();
-                let val = fMatch[2].replace(/[\{\}]/g, ""); // Remove LaTeX braces
+                let val = fMatch[2].replace(/[\{\}]/g, "");
                 
                 if (key === 'author') entry.authors = val.replace(/\s+and\s+/g, "; ");
                 else if (key === 'title') entry.title = val;
@@ -358,22 +347,30 @@
             const bibs = parseBibTeX(text);
             bibData.items = [...bibData.items, ...bibs];
         } else {
-            // Fallback to simple line-by-line parsing
-            const lines = text.split('\n').filter(l => l.trim().length > 5);
-            lines.forEach(line => {
-                let year = (line.match(/\b(19|20)\d{2}\b/) || [''])[0];
-                bibData.items.push({
-                    id: Date.now() + Math.random().toString(),
-                    type: 'journal', authors: line.split(/[(\.]/)[0].trim(),
-                    year: year, title: "Parsed (Please Edit)", journal: line
-                });
+            const blocks = text.match(/^\s*\[?\d+\]?[\.\)]?\s/m) 
+                ? text.split(/\n(?=\s*\[?\d+\]?[\.\)]?\s)/) 
+                : text.split(/\n\s*\n/);
+                
+            blocks.forEach(block => {
+                let cleanBlock = block.replace(/\n/g, ' ').trim();
+                if (cleanBlock.length > 5) {
+                    let year = (cleanBlock.match(/\b(19|20)\d{2}\b/) || [''])[0];
+                    let authorMatch = cleanBlock.replace(/^\[?\d+\]?[\.\)]?\s*/, '').split(/[(\.]/)[0];
+                    bibData.items.push({
+                        id: Date.now() + Math.random().toString(),
+                        type: 'journal', 
+                        authors: authorMatch ? authorMatch.trim() : "Unknown",
+                        year: year, 
+                        title: "Parsed (Please Edit)", 
+                        journal: cleanBlock
+                    });
+                }
             });
         }
         saveToStorage();
         renderLibrary();
     }
 
-    // --- TEMPLATE LOGIC ---
     function insertTag(tag) {
         const input = document.getElementById('customFormatInput');
         input.value += `{${tag}}`;
@@ -403,7 +400,7 @@
         updateFormatDropdown();
         document.getElementById('formatSelect').value = name;
         saveToStorage();
-        alert("Style saved locally!");
+        alert("Style saved locally.");
     }
 
     function updateFormatDropdown() {
@@ -416,7 +413,6 @@
         }
     }
 
-    // --- CROSSREF & MANUAL ---
     async function searchCrossRef() {
         const query = document.getElementById('searchInput').value.trim();
         if(!query) return;
@@ -486,7 +482,6 @@
         if(confirm("Delete all data?")) { bibData.items = []; saveToStorage(); renderLibrary(); } 
     }
 
-    // --- RENDERING ---
     function renderLibrary() {
         document.getElementById('libCount').innerText = bibData.items.length;
         const output = document.getElementById('libraryOutput');
@@ -505,18 +500,14 @@
             let str = '';
             if (formatStyle === 'custom' || bibData.templates[formatStyle]) {
                 let template = document.getElementById('customFormatInput').value;
-                
-                // 1. Inject variables (default to empty string if missing)
                 str = template.replace(/{(\w+)}/g, (m, key) => ref[key] ? ref[key].trim() : '');
-                
-                // 2. Clean up the orphaned punctuation
-                str = str.replace(/<[^>]+>\s*<\/[^>]+>/g, '') // Remove empty HTML tags (e.g., if <i>{journal}</i> is empty)
-                         .replace(/\(\s*\)/g, '')             // Remove empty parentheses like ()
-                         .replace(/[,;:]\s*(?=[.,;])/g, '')   // Remove stray commas/colons sitting right before a period
-                         .replace(/\.\s*\./g, '.')            // Collapse double periods into a single period
-                         .replace(/\s+([.,;:])/g, '$1')       // Remove awkward spaces right before punctuation
-                         .replace(/\s{2,}/g, ' ')             // Collapse multiple consecutive spaces into one
-                         .replace(/^[.,\s]+|[.,\s]+$/g, '');  // Trim trailing/leading punctuation from the very ends
+                str = str.replace(/<[^>]+>\s*<\/[^>]+>/g, '')
+                         .replace(/\(\s*\)/g, '')
+                         .replace(/[,;:]\s*(?=[.,;])/g, '')
+                         .replace(/\.\s*\./g, '.')
+                         .replace(/\s+([.,;:])/g, '$1')
+                         .replace(/\s{2,}/g, ' ')
+                         .replace(/^[.,\s]+|[.,\s]+$/g, '');
             } else {
                 str = formatStandard(ref, formatStyle, index);
             }
