@@ -1,0 +1,88 @@
+Unit Tests
+
+Pro Bibliography Manager
+
+Test Case 1.1: BibTeX Parsing and APA Formatting
+
+Input Data:
+@article{smith2020,
+  author = {Smith, John and Doe, Jane},
+  title = {A Study of Stars},
+  journal = {Journal of Astronomy},
+  year = {2020},
+  volume = {5},
+  pages = {10-20},
+  doi = {10.1234/ast.2020}
+}
+
+Procedure:
+1.  Navigate to Batch / BibTeX tab
+2.  Paste input data into text area
+3.  Click button Process Text
+4.  Under Output Format, select APA 7th
+
+Expected Output (Library Output):
+Smith, John; Doe, Jane (2020). A Study of Stars. Journal of Astronomy. doi:10.1234/ast.2020
+
+Test Case 1.2: Style Switching to IEEE
+
+Input Data: (Retain the parsed data from Test Case 1.1)
+
+Procedure:
+1.  Under Output Format, select IEEE.
+
+Expected Output:
+
+[1] Smith, John; Doe, Jane, "A Study of Stars," Journal of Astronomy, 2020.
+
+Pro Citation Renumbering Tool
+
+Test Case 2.1: Convert Numbers to Tags (Range Expansion)
+
+Input Document Body:
+The sky is blue [1]. Water is wet [2-3].
+
+Input Reference List:
+1. Smith, J. (2020). The sky.
+2. Doe, A. (2019). Water properties.
+3. Johnson, B. (2021). Liquids.
+
+Procedure:
+1.  Paste text into Document Body Text and Reference List fields.
+2.  Click button Convert Numbers to Tags
+
+Expected Document Body:
+The sky is blue [Smith 2020]. Water is wet [Doe 2019; Johnson 2021].
+
+Expected Reference List:
+[Smith 2020] Smith, J. (2020). The sky.
+
+[Doe 2019] Doe, A. (2019). Water properties.
+
+[Johnson 2021] Johnson, B. (2021). Liquids.
+
+Test Case 2.2: Convert Tags to Numbers (Reordering and Condensing)
+
+Input Document Body:
+New observation: [Doe 2019; Johnson 2021; Smith 2020].
+
+Input Reference List:
+[Smith 2020] Smith, J. (2020). The sky.
+[Doe 2019] Doe, A. (2019). Water properties.
+[Johnson 2021] Johnson, B. (2021). Liquids.
+
+Procedure:
+1.  Paste the text into the Document Body Text and Reference List fields.
+2.  Click button Convert Tags to Numbers
+
+Expected Document Body:
+New observation: [1-3].
+
+Expected Reference List:
+1. Doe, A. (2019). Water properties.
+
+2. Johnson, B. (2021). Liquids.
+
+3. Smith, J. (2020). The sky.
+
+Note: The tool reorders the references chronologically based on first appearance in the document and condenses the sequence [1, 2, 3] to [1-3].
