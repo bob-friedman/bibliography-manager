@@ -126,7 +126,7 @@
             1. Paste the manuscript text and numbered references into the boxes below.<br>
             2. Click <strong>1. Convert Numbers to Tags</strong>. This replaces [1, 2] with [Smith 2020; Doe 2019].<br>
             3. Rearrange, add, or delete text in the manuscript as needed.<br>
-            4. Click <strong>2. Convert Tags to Numbers</strong>. This reassigns numbers chronologically and perfectly re-sorts the reference list! <em>(Note: Unused references will be safely moved to the bottom of the list).</em>
+            4. Click <strong>2. Convert Tags to Numbers</strong>. This reassigns numbers chronologically and perfectly re-sorts the reference list. <em>(Unused references will be safely moved to the bottom of the list).</em>
         </div>
 
         <div class="toolbar">
@@ -135,7 +135,6 @@
                 <button class="accent" onclick="convertToNumbers()">2. Convert Tags to Numbers</button>
             </div>
             <div class="file-controls">
-                <!-- Hidden file input for importing -->
                 <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="importData(event)">
                 <button class="secondary" onclick="document.getElementById('fileInput').click()">Load JSON</button>
                 <button class="secondary" onclick="exportData()">Save JSON</button>
@@ -155,26 +154,21 @@
     </div>
 
 <script>
-    // --- IMPORT / EXPORT FUNCTIONS ---
-
     function exportData() {
         const data = {
             docBody: document.getElementById('docBody').value,
             refList: document.getElementById('refList').value
         };
         
-        // Create a blob from the JSON data
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         
-        // Create a temporary anchor element to trigger download
         const a = document.createElement('a');
         a.href = url;
         a.download = 'citation_data.json';
         document.body.appendChild(a);
         a.click();
         
-        // Cleanup
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
@@ -195,14 +189,9 @@
         };
         reader.readAsText(file);
         
-        // Reset input so the same file can be selected again if needed
         event.target.value = '';
     }
 
-
-    // --- HELPER FUNCTIONS ---
-
-    // Expands ranges like "1-3" to [1, 2, 3]
     function expandRanges(citationStr) {
         let numbers = [];
         let parts = citationStr.split(',');
@@ -225,11 +214,10 @@
         return numbers;
     }
 
-    // Condenses array [1, 2, 3, 5] into "1-3, 5"
     function condenseNumbers(numArray) {
         if (!numArray || numArray.length === 0) return "";
         numArray = [...new Set(numArray)].map(Number).sort((a, b) => a - b);
-        if (numArray.length === 0) return ""; // Extra safety check
+        if (numArray.length === 0) return "";
 
         let result = [];
         let temp = [numArray[0]];
@@ -246,26 +234,21 @@
         return result.join(", ");
     }
 
-    // Generates a short tag based on Author and Year
     function generateTag(refString, existingTags) {
-        // Find Year
         const yearMatch = refString.match(/\b(19|20)\d{2}\b/);
         const year = yearMatch ? yearMatch[0] : "n.d.";
         
-        // Strip leading numbers, HTML tags, and quotation marks to find the author's name cleanly
         let cleanText = refString.replace(/^\[?\d+\]?[\.\)]?\s*/, '')
                                  .replace(/<[^>]+>/g, '')
                                  .replace(/^["'“‘\s]+/, '');
         
-        // Grab the first continuous word (handles O'Connor, Smith-Jones, Müller, etc.)
         const authorMatch = cleanText.match(/^([^\s,\.]+)/);
         const author = authorMatch ? authorMatch[1] : "Ref";
 
         let baseTag = `${author} ${year}`;
         let tag = baseTag;
-        let counter = 97; // ascii 'a'
+        let counter = 97; 
         
-        // Ensure uniqueness (e.g., if there are two Smith 2020 papers)
         while (existingTags.has(tag)) {
             tag = `${baseTag}${String.fromCharCode(counter)}`;
             counter++;
@@ -273,8 +256,6 @@
         existingTags.add(tag);
         return tag;
     }
-
-    // --- MAIN EXECUTIONS ---
 
     function convertToTags() {
         let body = document.getElementById('docBody').value;
@@ -285,32 +266,29 @@
             return;
         }
 
-        // 1. Parse Reference List
-        let refLines = refs.split('\n').filter(l => l.trim().length > 0);
+        let refBlocks = refs.split(/\n(?=\s*\[?\d+\]?[\.\)]?\s)/).filter(b => b.trim().length > 0);
         let numToTagMap = {};
         let taggedRefsOutput = [];
         let existingTags = new Set();
 
-        refLines.forEach(line => {
-            let match = line.match(/^\[?(\d+)\]?[\.\)]?\s*(.*)/);
+        refBlocks.forEach(block => {
+            let match = block.match(/^\s*\[?(\d+)\]?[\.\)]?\s*([\s\S]*)/);
             if (match) {
                 let num = parseInt(match[1]);
-                let content = match[2];
+                let content = match[2].trim();
                 let tag = generateTag(content, existingTags);
                 numToTagMap[num] = tag;
                 taggedRefsOutput.push(`[${tag}] ${content}`);
             } else {
-                taggedRefsOutput.push(line);
+                taggedRefsOutput.push(block.trim());
             }
         });
 
-        // --- SAFETY CHECK ---
         if (Object.keys(numToTagMap).length === 0) {
-            alert("No numbered references found! Make sure your references start with numbers before converting to tags.");
-            return; // Abort to prevent unnecessary processing
+            alert("No numbered references found! Ensure references start with numbers before converting to tags.");
+            return; 
         }
 
-        // 2. Process Body Text
         let newBody = body.replace(/\[([0-9\s,\-;]+)\]/g, (match, inner) => {
             let innerClean = inner.replace(/;/g, ','); 
             let numbers = expandRanges(innerClean);
@@ -318,9 +296,8 @@
             return `[${tags.join("; ")}]`;
         });
 
-        // 3. Update UI
         document.getElementById('docBody').value = newBody;
-        document.getElementById('refList').value = taggedRefsOutput.join('\n');
+        document.getElementById('refList').value = taggedRefsOutput.join('\n\n');
     }
 
     function convertToNumbers() {
@@ -332,28 +309,24 @@
             return;
         }
 
-        // 1. Parse Tagged Reference List
-        let refLines = refs.split('\n').filter(l => l.trim().length > 0);
+        let refBlocks = refs.split(/\n(?=\s*\[[^\]]+\]\s)/).filter(b => b.trim().length > 0);
         let tagToContentMap = {};
         let untaggedLines = [];
         
-	    refLines.forEach(line => {
-            let match = line.match(/^\[([^\]]+)\]\s*(.*)/);
+	    refBlocks.forEach(block => {
+            let match = block.match(/^\s*\[([^\]]+)\]\s*([\s\S]*)/);
             if (match) {
-                tagToContentMap[match[1].trim()] = match[2];
+                tagToContentMap[match[1].trim()] = match[2].trim();
             } else {
-            // Save any notes, empty lines, or malformed text
-                untaggedLines.push(line); 
+                untaggedLines.push(block.trim()); 
             }
         });
 
-        // --- SAFETY CHECK (PREVENTS ERASING DATA) ---
         if (Object.keys(tagToContentMap).length === 0) {
-            alert("No tags found in the reference list! Make sure you are in 'Tag' format (e.g., [Smith 2020]) before converting to numbers.");
-            return; // Abort before it wipes the text box!
+            alert("No tags found in the reference list! Ensure the text is in 'Tag' format (e.g., [Smith 2020]) before converting to numbers.");
+            return; 
         }
 
-        // 2. Scan Body Text to assign numbers in order of appearance
         let finalOrderedRefs = [];
         let tagToNewNumMap = {};
         let currentNum = 1;
@@ -390,7 +363,6 @@
             return `[${citationStr}]`;
         });
 
-        // 3. Prevent Data Loss: Append any unused references to the end of the list
         for (let tag in tagToContentMap) {
             if (!tagToNewNumMap[tag]) {
                 tagToNewNumMap[tag] = currentNum;
@@ -399,17 +371,14 @@
             }
         }
 
-        // 4. Generate New Reference List
 	    let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
 
-	    // Append any untagged lines to the very end
 	    if (untaggedLines.length > 0) {
             numberedRefsOutput = numberedRefsOutput.concat(untaggedLines);
 	    }
 
-        // 5. Update UI
         document.getElementById('docBody').value = newBody;
-        document.getElementById('refList').value = numberedRefsOutput.join('\n');
+        document.getElementById('refList').value = numberedRefsOutput.join('\n\n');
     }
 </script>
 </body>
