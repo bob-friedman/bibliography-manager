@@ -292,7 +292,6 @@
         let existingTags = new Set();
 
         refLines.forEach(line => {
-            // Matches "1.", "[1]", "1)", etc.
             let match = line.match(/^\[?(\d+)\]?[\.\)]?\s*(.*)/);
             if (match) {
                 let num = parseInt(match[1]);
@@ -305,13 +304,16 @@
             }
         });
 
-        // 2. Process Body Text (Replace [1, 2-4] with [Tag 1; Tag 2; Tag 3; Tag 4])
-        // Matches brackets containing numbers, commas, hyphens, and semicolons
+        // --- SAFETY CHECK ---
+        if (Object.keys(numToTagMap).length === 0) {
+            alert("No numbered references found! Make sure your references start with numbers before converting to tags.");
+            return; // Abort to prevent unnecessary processing
+        }
+
+        // 2. Process Body Text
         let newBody = body.replace(/\[([0-9\s,\-;]+)\]/g, (match, inner) => {
-            let innerClean = inner.replace(/;/g, ','); // treat semicolons as commas for expanding
+            let innerClean = inner.replace(/;/g, ','); 
             let numbers = expandRanges(innerClean);
-            
-            // Map numbers to tags, or keep the original number if not found
             let tags = numbers.map(n => numToTagMap[n] ? numToTagMap[n] : n);
             return `[${tags.join("; ")}]`;
         });
@@ -335,28 +337,31 @@
         let tagToContentMap = {};
         
         refLines.forEach(line => {
-            // Matches "[Smith 2020] Rest of citation..."
             let match = line.match(/^\[([^\]]+)\]\s*(.*)/);
             if (match) {
                 tagToContentMap[match[1].trim()] = match[2];
             }
         });
 
+        // --- SAFETY CHECK (PREVENTS ERASING DATA) ---
+        if (Object.keys(tagToContentMap).length === 0) {
+            alert("No tags found in the reference list! Make sure you are in 'Tag' format (e.g., [Smith 2020]) before converting to numbers.");
+            return; // Abort before it wipes the text box!
+        }
+
         // 2. Scan Body Text to assign numbers in order of appearance
         let finalOrderedRefs = [];
         let tagToNewNumMap = {};
         let currentNum = 1;
 
-        // Matches ANYTHING inside brackets. Contents are validated inside the function.
         let newBody = body.replace(/\[([^\]]+)\]/g, (match, inner) => {
             let tags = inner.split(/[;,]/).map(t => t.trim());
             
-            // Check if ANY tag in this bracket exists in the reference map
             let isCitation = tags.some(t => tagToContentMap[t]);
-            if (!isCitation) return match; // If not a citation (e.g. [sic]), leave it alone
+            if (!isCitation) return match; 
 
             let newNumbers = [];
-            let unmapped = []; // To preserve things like manual notes mixed in
+            let unmapped = []; 
             
             tags.forEach(tag => {
                 if (tagToContentMap[tag]) {
@@ -373,7 +378,6 @@
 
             let citationStr = condenseNumbers(newNumbers);
             
-            // If a mix of valid citations and unmapped text exists, stitch it back together safely
             if (unmapped.length > 0) {
                 if (citationStr) citationStr += "; " + unmapped.join("; ");
                 else citationStr = unmapped.join("; ");
