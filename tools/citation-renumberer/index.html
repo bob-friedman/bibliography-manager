@@ -13,6 +13,8 @@
             --text: #333;
             --border: #ccc;
             --accent: #27ae60;
+            --secondary: #7f8c8d;
+            --secondary-hover: #636e72;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -63,30 +65,44 @@
         #docBody { min-height: 400px; }
         #refList { min-height: 400px; white-space: pre-wrap; }
         
-        .controls {
+        .toolbar {
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
             gap: 15px;
-            margin: 10px 0;
             padding: 15px;
             background: #eef2f5;
             border-radius: 8px;
             border: 1px dashed var(--primary);
         }
+        
+        .controls, .file-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
         button {
             padding: 12px 20px;
             background-color: var(--primary);
             color: white;
             border: none;
             border-radius: 5px;
-            font-size: 16px;
+            font-size: 15px;
             cursor: pointer;
             font-weight: 600;
             transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
         button:hover { background-color: var(--primary-hover); }
         button.accent { background-color: var(--accent); }
         button.accent:hover { background-color: #219653; }
+        button.secondary { background-color: var(--secondary); padding: 10px 15px; font-size: 14px;}
+        button.secondary:hover { background-color: var(--secondary-hover); }
         
         .instructions {
             background: #fff8e1;
@@ -94,7 +110,7 @@
             border-left: 4px solid #f1c40f;
             border-radius: 4px;
             font-size: 14px;
-            margin-bottom: 20px;
+            margin-bottom: 5px;
             line-height: 1.5;
         }
     </style>
@@ -108,14 +124,22 @@
         <div class="instructions">
             <strong>Workflow:</strong><br>
             1. Paste the manuscript text and numbered references into the boxes below.<br>
-            2. Click <strong>"1. Convert Numbers to Tags"</strong>. This replaces [1, 2] with [Smith 2020; Doe 2019].<br>
+            2. Click <strong>1. Convert Numbers to Tags</strong>. This replaces [1, 2] with [Smith 2020; Doe 2019].<br>
             3. Rearrange, add, or delete text in the manuscript as needed.<br>
-            4. Click <strong>"2. Convert Tags to Numbers"</strong>. This reassigns numbers chronologically and perfectly re-sorts the reference list!
+            4. Click <strong>2. Convert Tags to Numbers</strong>. This reassigns numbers chronologically and perfectly re-sorts the reference list! <em>(Note: Unused references will be safely moved to the bottom of the list).</em>
         </div>
 
-        <div class="controls">
-            <button onclick="convertToTags()">1. Convert Numbers to Tags</button>
-            <button class="accent" onclick="convertToNumbers()">2. Convert Tags to Numbers</button>
+        <div class="toolbar">
+            <div class="controls">
+                <button onclick="convertToTags()">1. Convert Numbers to Tags</button>
+                <button class="accent" onclick="convertToNumbers()">2. Convert Tags to Numbers</button>
+            </div>
+            <div class="file-controls">
+                <!-- Hidden file input for importing -->
+                <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="importData(event)">
+                <button class="secondary" onclick="document.getElementById('fileInput').click()">Load JSON</button>
+                <button class="secondary" onclick="exportData()">Save JSON</button>
+            </div>
         </div>
 
         <div class="grid-2">
@@ -131,6 +155,51 @@
     </div>
 
 <script>
+    // --- IMPORT / EXPORT FUNCTIONS ---
+
+    function exportData() {
+        const data = {
+            docBody: document.getElementById('docBody').value,
+            refList: document.getElementById('refList').value
+        };
+        
+        // Create a blob from the JSON data
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create a temporary anchor element to trigger download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'citation_data.json';
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.docBody !== undefined) document.getElementById('docBody').value = data.docBody;
+                if (data.refList !== undefined) document.getElementById('refList').value = data.refList;
+            } catch (err) {
+                alert("Error: The selected file is not a valid JSON generated by this tool.");
+            }
+        };
+        reader.readAsText(file);
+        
+        // Reset input so the same file can be selected again if needed
+        event.target.value = '';
+    }
+
+
     // --- HELPER FUNCTIONS ---
 
     // Expands ranges like "1-3" to [1, 2, 3]
@@ -160,6 +229,8 @@
     function condenseNumbers(numArray) {
         if (!numArray || numArray.length === 0) return "";
         numArray = [...new Set(numArray)].map(Number).sort((a, b) => a - b);
+        if (numArray.length === 0) return ""; // Extra safety check
+
         let result = [];
         let temp = [numArray[0]];
         
@@ -311,10 +382,19 @@
             return `[${citationStr}]`;
         });
 
-        // 3. Generate New Reference List
+        // 3. Prevent Data Loss: Append any unused references to the end of the list
+        for (let tag in tagToContentMap) {
+            if (!tagToNewNumMap[tag]) {
+                tagToNewNumMap[tag] = currentNum;
+                finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[tag] });
+                currentNum++;
+            }
+        }
+
+        // 4. Generate New Reference List
         let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
 
-        // 4. Update UI
+        // 5. Update UI
         document.getElementById('docBody').value = newBody;
         document.getElementById('refList').value = numberedRefsOutput.join('\n');
     }
