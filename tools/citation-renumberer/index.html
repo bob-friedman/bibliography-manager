@@ -337,7 +337,7 @@
         let tagToContentMap = {};
         let untaggedLines = [];
         
-	refLines.forEach(line => {
+	    refLines.forEach(line => {
             let match = line.match(/^\[([^\]]+)\]\s*(.*)/);
             if (match) {
                 tagToContentMap[match[1].trim()] = match[2];
@@ -400,12 +400,12 @@
         }
 
         // 4. Generate New Reference List
-	let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
+	    let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
 
-	// Append any untagged lines to the very end
-	if (untaggedLines.length > 0) {
+	    // Append any untagged lines to the very end
+	    if (untaggedLines.length > 0) {
             numberedRefsOutput = numberedRefsOutput.concat(untaggedLines);
-	}
+	    }
 
         // 5. Update UI
         document.getElementById('docBody').value = newBody;
