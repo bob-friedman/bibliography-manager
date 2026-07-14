@@ -1,8 +1,11 @@
 # Pro Citation Renumbering Tool
 
-A lightweight, browser-based utility designed to solve the problem of editing manuscripts with hardcoded, numbered citations. 
+A lightweight, browser-based utility designed to solve the problem of editing manuscripts with hardcoded, numbered citations.
 
 When paragraphs are rearranged or new sources are added to a paper, numbered citations (like `[1, 2-4]`) become out of order. This tool temporarily converts numbered citations into author-year tags to allow for unrestricted editing, and then seamlessly converts them back into perfectly ordered numbers.
+
+**⚠️ Project Status: Experimental / Untested**
+Please note that this is a personal utility and has not been rigorously tested. 
 
 ## Features
 * **Two-Way Conversion:** Translates bracketed numbers into readable tags (e.g., `[Smith 2020]`) and back again.
