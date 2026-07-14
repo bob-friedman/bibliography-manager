@@ -285,7 +285,7 @@
         });
 
         if (Object.keys(numToTagMap).length === 0) {
-            alert("No numbered references found! Ensure references start with numbers before converting to tags.");
+            alert("No numbered references found. Verify references start with numbers before converting to tags.");
             return; 
         }
 
@@ -309,14 +309,22 @@
             return;
         }
 
-        let refBlocks = refs.split(/\n(?=\s*\[[^\]]+\]\s)/).filter(b => b.trim().length > 0);
+        // Split on one or more newlines followed by a bracketed tag
+        // This safely handles both single-spaced and double-spaced reference lists
+        let refBlocks = refs.split(/\n+(?=\s*\[[^\]]+\])/).filter(b => b.trim().length > 0);
         let tagToContentMap = {};
         let untaggedLines = [];
         
-	    refBlocks.forEach(block => {
+        function normalizeTag(t) {
+            if (!t) return "";
+            return t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        }
+
+        refBlocks.forEach(block => {
             let match = block.match(/^\s*\[([^\]]+)\]\s*([\s\S]*)/);
             if (match) {
-                tagToContentMap[match[1].trim()] = match[2].trim();
+                let normTag = normalizeTag(match[1]);
+                tagToContentMap[normTag] = match[2].trim();
             } else {
                 untaggedLines.push(block.trim()); 
             }
@@ -332,24 +340,25 @@
         let currentNum = 1;
 
         let newBody = body.replace(/\[([^\]]+)\]/g, (match, inner) => {
-            let tags = inner.split(/[;,]/).map(t => t.trim());
+            let originalTags = inner.split(/[;,]/).map(t => t.trim());
+            let normTags = originalTags.map(normalizeTag);
             
-            let isCitation = tags.some(t => tagToContentMap[t]);
+            let isCitation = normTags.some(t => t in tagToContentMap);
             if (!isCitation) return match; 
 
             let newNumbers = [];
             let unmapped = []; 
             
-            tags.forEach(tag => {
-                if (tagToContentMap[tag]) {
-                    if (!tagToNewNumMap[tag]) {
-                        tagToNewNumMap[tag] = currentNum;
-                        finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[tag] });
+            normTags.forEach((normTag, index) => {
+                if (normTag in tagToContentMap) {
+                    if (!(normTag in tagToNewNumMap)) {
+                        tagToNewNumMap[normTag] = currentNum;
+                        finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[normTag] });
                         currentNum++;
                     }
-                    newNumbers.push(tagToNewNumMap[tag]);
+                    newNumbers.push(tagToNewNumMap[normTag]);
                 } else {
-                    unmapped.push(tag);
+                    unmapped.push(originalTags[index]);
                 }
             });
 
@@ -363,20 +372,21 @@
             return `[${citationStr}]`;
         });
 
-        for (let tag in tagToContentMap) {
-            if (!tagToNewNumMap[tag]) {
-                tagToNewNumMap[tag] = currentNum;
-                finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[tag] });
+        for (let normTag in tagToContentMap) {
+            if (!(normTag in tagToNewNumMap)) {
+                tagToNewNumMap[normTag] = currentNum;
+                finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[normTag] });
                 currentNum++;
             }
         }
 
-	    let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
+        let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
 
-	    if (untaggedLines.length > 0) {
+        if (untaggedLines.length > 0) {
             numberedRefsOutput = numberedRefsOutput.concat(untaggedLines);
-	    }
+        }
 
+        // Joins with \n\n to correctly match the expected unit test output format
         document.getElementById('docBody').value = newBody;
         document.getElementById('refList').value = numberedRefsOutput.join('\n\n');
     }
