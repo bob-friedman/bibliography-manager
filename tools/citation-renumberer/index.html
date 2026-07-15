@@ -28,7 +28,7 @@
         }
         h1 { margin-bottom: 5px; color: #2c3e50; text-align: center; }
         p.subtitle { margin-bottom: 20px; color: #7f8c8d; text-align: center; }
-        
+
         .container {
             width: 100%;
             max-width: 1200px;
@@ -42,15 +42,15 @@
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        .grid-2 { 
-            display: grid; 
-            grid-template-columns: 3fr 2fr; 
-            gap: 20px; 
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 20px;
         }
         @media (max-width: 800px) {
             .grid-2 { grid-template-columns: 1fr; }
         }
-        
+
         label { display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50; font-size: 16px;}
         textarea {
             width: 100%;
@@ -64,7 +64,7 @@
         }
         #docBody { min-height: 400px; }
         #refList { min-height: 400px; white-space: pre-wrap; }
-        
+
         .toolbar {
             display: flex;
             justify-content: space-between;
@@ -76,7 +76,7 @@
             border-radius: 8px;
             border: 1px dashed var(--primary);
         }
-        
+
         .controls, .file-controls {
             display: flex;
             gap: 10px;
@@ -103,7 +103,7 @@
         button.accent:hover { background-color: #219653; }
         button.secondary { background-color: var(--secondary); padding: 10px 15px; font-size: 14px;}
         button.secondary:hover { background-color: var(--secondary-hover); }
-        
+
         .instructions {
             background: #fff8e1;
             padding: 15px;
@@ -119,7 +119,7 @@
 
     <h1>Pro Citation Renumbering Tool</h1>
     <p class="subtitle">Interconvert numbered citations and short-form tags for easy editing.</p>
-    
+
     <div class="container">
         <div class="instructions">
             <strong>Workflow:</strong><br>
@@ -159,16 +159,16 @@
             docBody: document.getElementById('docBody').value,
             refList: document.getElementById('refList').value
         };
-        
+
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        
+
         const a = document.createElement('a');
         a.href = url;
         a.download = 'citation_data.json';
         document.body.appendChild(a);
         a.click();
-        
+
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
@@ -188,13 +188,14 @@
             }
         };
         reader.readAsText(file);
-        
+
         event.target.value = '';
     }
 
     function expandRanges(citationStr) {
         let numbers = [];
-        let parts = citationStr.split(',');
+        let normalized = citationStr.replace(/[\u2013\u2014]/g, '-');
+        let parts = normalized.split(',');
         for (let part of parts) {
             part = part.trim();
             if (part.includes('-')) {
@@ -221,7 +222,7 @@
 
         let result = [];
         let temp = [numArray[0]];
-        
+
         for (let i = 1; i < numArray.length; i++) {
             if (numArray[i] === numArray[i - 1] + 1) {
                 temp.push(numArray[i]);
@@ -237,18 +238,25 @@
     function generateTag(refString, existingTags) {
         const yearMatch = refString.match(/\b(19|20)\d{2}\b/);
         const year = yearMatch ? yearMatch[0] : "n.d.";
-        
+
         let cleanText = refString.replace(/^\[?\d+\]?[\.\)]?\s*/, '')
                                  .replace(/<[^>]+>/g, '')
-                                 .replace(/^["'“‘\s]+/, '');
-        
-        const authorMatch = cleanText.match(/^([^\s,\.]+)/);
-        const author = authorMatch ? authorMatch[1] : "Ref";
+                                 .replace(/^["'“‘\(\[\s]+/, '');
+
+        let author = "Ref";
+        const words = cleanText.split(/[\s,\.\(\)\[\]]+/);
+        for (let word of words) {
+            word = word.trim();
+            if (word && !/^\d{4}$/.test(word) && !/^\d+$/.test(word)) {
+                author = word;
+                break;
+            }
+        }
 
         let baseTag = `${author} ${year}`;
         let tag = baseTag;
-        let counter = 97; 
-        
+        let counter = 97;
+
         while (existingTags.has(tag)) {
             tag = `${baseTag}${String.fromCharCode(counter)}`;
             counter++;
@@ -286,11 +294,11 @@
 
         if (Object.keys(numToTagMap).length === 0) {
             alert("No numbered references found. Verify references start with numbers before converting to tags.");
-            return; 
+            return;
         }
 
         let newBody = body.replace(/\[([0-9\s,\-;]+)\]/g, (match, inner) => {
-            let innerClean = inner.replace(/;/g, ','); 
+            let innerClean = inner.replace(/;/g, ',');
             let numbers = expandRanges(innerClean);
             let tags = numbers.map(n => numToTagMap[n] ? numToTagMap[n] : n);
             return `[${tags.join("; ")}]`;
@@ -314,7 +322,7 @@
         let refBlocks = refs.split(/\n+(?=\s*\[[^\]]+\])/).filter(b => b.trim().length > 0);
         let tagToContentMap = {};
         let untaggedLines = [];
-        
+
         function normalizeTag(t) {
             if (!t) return "";
             return t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -326,13 +334,13 @@
                 let normTag = normalizeTag(match[1]);
                 tagToContentMap[normTag] = match[2].trim();
             } else {
-                untaggedLines.push(block.trim()); 
+                untaggedLines.push(block.trim());
             }
         });
 
         if (Object.keys(tagToContentMap).length === 0) {
             alert("No tags found in the reference list! Ensure the text is in 'Tag' format (e.g., [Smith 2020]) before converting to numbers.");
-            return; 
+            return;
         }
 
         let finalOrderedRefs = [];
@@ -342,13 +350,13 @@
         let newBody = body.replace(/\[([^\]]+)\]/g, (match, inner) => {
             let originalTags = inner.split(/[;,]/).map(t => t.trim());
             let normTags = originalTags.map(normalizeTag);
-            
+
             let isCitation = normTags.some(t => t in tagToContentMap);
-            if (!isCitation) return match; 
+            if (!isCitation) return match;
 
             let newNumbers = [];
-            let unmapped = []; 
-            
+            let unmapped = [];
+
             normTags.forEach((normTag, index) => {
                 if (normTag in tagToContentMap) {
                     if (!(normTag in tagToNewNumMap)) {
@@ -363,7 +371,7 @@
             });
 
             let citationStr = condenseNumbers(newNumbers);
-            
+
             if (unmapped.length > 0) {
                 if (citationStr) citationStr += "; " + unmapped.join("; ");
                 else citationStr = unmapped.join("; ");
@@ -393,4 +401,3 @@
 </script>
 </body>
 </html>
-

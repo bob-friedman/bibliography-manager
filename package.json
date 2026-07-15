@@ -1,0 +1,13 @@
+{
+  "name": "pro-bibliography-and-citation-renumberer-tests",
+  "version": "1.0.0",
+  "description": "Automated tests for Bibliography Manager and Citation Renumberer",
+  "main": "index.html",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}

@@ -56,7 +56,7 @@
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        
+
         label { display: block; font-weight: 600; margin-bottom: 5px; margin-top: 15px; }
         input[type="text"], textarea, select {
             width: 100%;
@@ -81,7 +81,7 @@
         button.secondary { background-color: #7f8c8d; }
         button.accent { background-color: var(--accent); }
         button.small { padding: 5px 10px; font-size: 13px; margin-top: 5px;}
-        
+
         .result-item, .bib-item {
             padding: 15px;
             border: 1px solid var(--border);
@@ -94,7 +94,7 @@
         }
         .result-text { flex: 1; margin-right: 15px; line-height: 1.5; }
         .controls-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
-        
+
         #customFormatContainer {
             width: 100%;
             background: #eef2f5;
@@ -120,7 +120,7 @@
 
         .loading { color: var(--primary); font-weight: bold; display: none; margin-top: 10px;}
         hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
-        
+
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         .type-badge {
             font-size: 10px;
@@ -135,7 +135,7 @@
 <body>
 
     <h1>Pro Bibliography Manager</h1>
-    
+
     <div class="container">
         <div class="card">
             <div class="tabs">
@@ -173,7 +173,7 @@
 
                 <label>Authors (comma separated)</label>
                 <input type="text" id="m_authors" placeholder="Smith J, Doe A">
-                
+
                 <div class="grid-2">
                     <div><label>Year</label><input type="text" id="m_year"></div>
                     <div><label>Title</label><input type="text" id="m_title"></div>
@@ -222,7 +222,7 @@
                 </div>
                 <button class="secondary" style="margin-left:auto;" onclick="clearLibrary()">Clear All</button>
             </div>
-            
+
             <div id="customFormatContainer" style="display: none;">
                 <label style="margin-top: 0;">Template Editor:</label>
                 <div class="tag-cloud">
@@ -241,7 +241,7 @@
                     <button class="small" onclick="saveTemplate()">Save Template</button>
                 </div>
             </div>
-            
+
             <hr>
             <div id="libraryOutput"></div>
         </div>
@@ -298,7 +298,7 @@
             const type = match[1].toLowerCase();
             const content = match[3];
             const entry = { id: Date.now() + Math.random().toString(), type: 'journal' };
-            
+
             if (type === 'book') entry.type = 'book';
             if (type === 'inproceedings' || type === 'proceedings') entry.type = 'conference';
 
@@ -307,7 +307,7 @@
             while ((fMatch = fieldRegex.exec(content)) !== null) {
                 const key = fMatch[1].toLowerCase();
                 let val = fMatch[2].replace(/[\{\}]/g, "");
-                
+
                 if (key === 'author') entry.authors = val.replace(/\s+and\s+/g, "; ");
                 else if (key === 'title') entry.title = val;
                 else if (key === 'year') entry.year = val;
@@ -347,10 +347,10 @@
             const bibs = parseBibTeX(text);
             bibData.items = [...bibData.items, ...bibs];
         } else {
-            const blocks = text.match(/^\s*\[?\d+\]?[\.\)]?\s/m) 
-                ? text.split(/\n(?=\s*\[?\d+\]?[\.\)]?\s)/) 
+            const blocks = text.match(/^\s*\[?\d+\]?[\.\)]?\s/m)
+                ? text.split(/\n(?=\s*\[?\d+\]?[\.\)]?\s)/)
                 : text.split(/\n\s*\n/);
-                
+
             blocks.forEach(block => {
                 let cleanBlock = block.replace(/\n/g, ' ').trim();
                 if (cleanBlock.length > 5) {
@@ -358,10 +358,10 @@
                     let authorMatch = cleanBlock.replace(/^\[?\d+\]?[\.\)]?\s*/, '').split(/[(\.]/)[0];
                     bibData.items.push({
                         id: Date.now() + Math.random().toString(),
-                        type: 'journal', 
+                        type: 'journal',
                         authors: authorMatch ? authorMatch.trim() : "Unknown",
-                        year: year, 
-                        title: "Parsed (Please Edit)", 
+                        year: year,
+                        title: "Parsed (Please Edit)",
                         journal: cleanBlock
                     });
                 }
@@ -466,20 +466,20 @@
         addToLibrary(ref);
     }
 
-    function addToLibrary(obj) { 
-        bibData.items.push(obj); 
-        saveToStorage(); 
-        renderLibrary(); 
+    function addToLibrary(obj) {
+        bibData.items.push(obj);
+        saveToStorage();
+        renderLibrary();
     }
 
-    function removeRef(id) { 
-        bibData.items = bibData.items.filter(r => r.id !== id); 
-        saveToStorage(); 
-        renderLibrary(); 
+    function removeRef(id) {
+        bibData.items = bibData.items.filter(r => r.id !== id);
+        saveToStorage();
+        renderLibrary();
     }
 
-    function clearLibrary() { 
-        if(confirm("Delete all data?")) { bibData.items = []; saveToStorage(); renderLibrary(); } 
+    function clearLibrary() {
+        if(confirm("Delete all data?")) { bibData.items = []; saveToStorage(); renderLibrary(); }
     }
 
     function renderLibrary() {
@@ -519,13 +519,18 @@
     }
 
     function formatStandard(ref, style, index) {
+        const authors = ref.authors || 'Unknown';
+        const year = ref.year || 'n.d.';
+        const title = ref.title || 'Untitled';
+        const container = ref.journal || ref.publisher || 'Unknown';
+
         if (style === 'apa') {
-            return `${ref.authors} (${ref.year}). ${ref.title}. <i>${ref.journal || ref.publisher}</i>. ${ref.doi ? 'doi:'+ref.doi : ''}`;
-        } 
-        if (style === 'ieee') {
-            return `[${index+1}] ${ref.authors}, "${ref.title}", <i>${ref.journal || ref.publisher}</i>, ${ref.year}.`;
+            return `${authors} (${year}). ${title}. <i>${container}</i>.${ref.doi ? ' doi:'+ref.doi : ''}`;
         }
-        return `${ref.authors} (${ref.year}). "${ref.title}". ${ref.journal || ref.publisher}.`;
+        if (style === 'ieee') {
+            return `[${index+1}] ${authors}, "${title}," <i>${container}</i>, ${year}.`;
+        }
+        return `${authors} (${year}). "${title}". ${container}.`;
     }
 
 
@@ -552,4 +557,3 @@
 </script>
 </body>
 </html>
-

@@ -32,8 +32,22 @@ Procedure:
 1.  Under Output Format, select IEEE.
 
 Expected Output:
-
 [1] Smith, John; Doe, Jane, "A Study of Stars," Journal of Astronomy, 2020.
+
+Test Case 1.3: Batch Parsing - Raw Text Fallback and Long Author Lists
+
+Input Data:
+Rae, J.W.; Borgeaud, S.; Cai, T.; Millican, K.; Hoffmann, J.; Song, F.; Aslanides, J.; Henderson, S.; Ring, R.; Young, S.; et al. Scaling Language Models: Methods, Analysis & Insights from Training Gopher. arXiv 2021, arXiv:2112.11446. [Google Scholar]
+
+Procedure:
+1.  Navigate to Batch / BibTeX tab.
+2.  Paste input data into text area.
+3.  Click button Process Text.
+4.  Under Output Format, select APA 7th.
+
+Expected Output (Library Output):
+Rae, J (2021). Parsed (Please Edit). Rae, J.W.; Borgeaud, S.; Cai, T.; Millican, K.; Hoffmann, J.; Song, F.; Aslanides, J.; Henderson, S.; Ring, R.; Young, S.; et al. Scaling Language Models: Methods, Analysis & Insights from Training Gopher. arXiv 2021, arXiv:2112.11446. [Google Scholar].
+*(Note: Validates raw text fallback logic, extracting the first string before a period as the author, and finding the year 2021).*
 
 Pro Citation Renumbering Tool
 
@@ -85,4 +99,109 @@ Expected Reference List:
 
 3. Smith, J. (2020). The sky.
 
-Note: The tool reorders the references chronologically based on first appearance in the document and condenses the sequence [1, 2, 3] to [1-3].
+Test Case 2.3: Convert Numbers to Tags - Pre-1900 Dates (Assigns "n.d.")
+
+Input Document Body:
+Early logic [1] and philosophy [2] laid the groundwork.
+
+Input Reference List:
+1. Boole, G. The Mathematical Analysis of Logic; London, UK, 1847.
+2. Waddell, W.W. The Parmenides of Plato; Glasgow, UK, 1894.
+
+Procedure:
+1.  Paste text into Document Body Text and Reference List fields.
+2.  Click button Convert Numbers to Tags.
+
+Expected Document Body:
+Early logic [Boole n.d.] and philosophy [Waddell n.d.] laid the groundwork.
+
+Expected Reference List:
+[Boole n.d.] Boole, G. The Mathematical Analysis of Logic; London, UK, 1847.
+
+[Waddell n.d.] Waddell, W.W. The Parmenides of Plato; Glasgow, UK, 1894.
+*(Note: Validates that years outside the 1900-2099 regex bounds default to "n.d.").*
+
+Test Case 2.4: Convert Numbers to Tags - Tag Collision Resolution
+
+Input Document Body:
+Multiple publications by the same author in the same year [1-2].
+
+Input Reference List:
+1. Friedman, R. A Perspective on Information Optimality. Signals 2022, 3, 410–427.
+2. Friedman, R. Another Paper on Information. Signals 2022, 4, 100-110.
+
+Procedure:
+1.  Paste text into Document Body Text and Reference List fields.
+2.  Click button Convert Numbers to Tags.
+
+Expected Document Body:
+Multiple publications by the same author in the same year [Friedman 2022; Friedman 2022a].
+
+Expected Reference List:
+[Friedman 2022] Friedman, R. A Perspective on Information Optimality. Signals 2022, 3, 410–427.
+
+[Friedman 2022a] Friedman, R. Another Paper on Information. Signals 2022, 4, 100-110.
+*(Note: Validates the `while (existingTags.has(tag))` logic appending 'a', 'b', etc.).*
+
+Test Case 2.5: Convert Tags to Numbers - Institutional Authors and Trailing Brackets
+
+Input Document Body:
+Definitions vary significantly [Merriam-Webster 2023].
+
+Input Reference List:
+[Merriam-Webster 2023] Merriam-Webster Dictionary. Available online: https://... (accessed on 6 April 2023). [Google Scholar] [CrossRef]
+
+Procedure:
+1.  Paste text into Document Body Text and Reference List fields.
+2.  Click button Convert Tags to Numbers.
+
+Expected Document Body:
+Definitions vary significantly [1].
+
+Expected Reference List:
+1. Merriam-Webster Dictionary. Available online: https://... (accessed on 6 April 2023). [Google Scholar] [CrossRef]
+*(Note: Verifies that trailing annotation brackets like [Google Scholar] do not interfere with tag-to-number mapping).*
+
+Test Case 2.6: Convert Tags to Numbers - Unused References Relegated to Bottom
+
+Input Document Body:
+Language evolution is observable [Scott-Phillips 2010].
+
+Input Reference List:
+[Pinker 1990] Pinker, S.; Bloom, P. Natural language and natural selection.
+[Scott-Phillips 2010] Scott-Phillips, T.C.; Kirby, S. Language evolution in the laboratory.
+[Hennig 1965] Hennig, W. Phylogenetic Systematics.
+
+Procedure:
+1.  Paste text into Document Body Text and Reference List fields.
+2.  Click button Convert Tags to Numbers.
+
+Expected Document Body:
+Language evolution is observable [1].
+
+Expected Reference List:
+1. Scott-Phillips, T.C.; Kirby, S. Language evolution in the laboratory.
+
+2. Pinker, S.; Bloom, P. Natural language and natural selection.
+
+3. Hennig, W. Phylogenetic Systematics.
+*(Note: Verifies that unused tags in the reference list are safely appended sequentially after the cited references).*
+
+Test Case 2.7: Convert Tags to Numbers - Unmapped Tags in Text Maintained
+
+Input Document Body:
+Neural networks demonstrate logic [Evans 2018; Unknown 2022].
+
+Input Reference List:
+[Evans 2018] Evans, R.; et al. Can Neural Networks Understand Logical Entailment?
+
+Procedure:
+1.  Paste text into Document Body Text and Reference List fields.
+2.  Click button Convert Tags to Numbers.
+
+Expected Document Body:
+Neural networks demonstrate logic [1; Unknown 2022].
+
+Expected Reference List:
+1. Evans, R.; et al. Can Neural Networks Understand Logical Entailment?
+*(Note: Verifies that tags present in the document body but missing from the reference list are left intact alongside condensed numbers).*
