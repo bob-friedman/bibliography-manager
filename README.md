@@ -1,7 +1,7 @@
 # Pro Bibliography Manager
 
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21370030.svg)](https://doi.org/10.5281/zenodo.21370030)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21370029.svg)](https://doi.org/10.5281/zenodo.21370029)
 
 A lightweight, single-file HTML5/JavaScript application for managing academic bibliographies. It runs entirely in the browser with zero dependencies, requiring no backend server or installation.
 
