@@ -47,7 +47,8 @@ Procedure:
 
 Expected Output:
 Rae, J (2021). Parsed (Please Edit). Rae, J.W.; Borgeaud, S.; Cai, T.; Millican, K.; Hoffmann, J.; Song, F.; Aslanides, J.; Henderson, S.; Ring, R.; Young, S.; et al. Scaling Language Models: Methods, Analysis & Insights from Training Gopher. arXiv 2021, arXiv:2112.11446. [Google Scholar].
-*(Note: Validates raw text fallback logic, extracting the first string before a period as the author, and finding the year 2021).*
+
+(Note: Validates raw text fallback logic, extracting the first string before a period as the author, and finding the year 2021).
 
 Pro Citation Renumbering Tool
 
