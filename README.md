@@ -35,8 +35,7 @@ From the terminal in the file's directory, run: `python -m http.server 8000` and
 
 ## Limitations & Known Issues
 
-* **Author Parsing:** The logic for parsing authors from CrossRef and BibTeX is simplified. It may not correctly format multi-part surnames or institutional authors.
-* **Citation Parsing:** The logic for parsing numbered citations is dependent on the use of the hyphen character '-'. The use of and en-dash or em-dash is not recognized, so these should be converted to hyphens before processing the text in this application.
+* **Author Parsing:** The logic for parsing authors from CrossRef and BibTeX is simplified. It may not correctly format multi-part surnames or institutional authors. Also, the field for "author name" is detected as the first 'word' in a reference.
 * **API Limits:** The CrossRef API integration uses unauthenticated requests, which are subject to rate limiting if used heavily.
 * **Formatting:** Standard formats (APA, IEEE) are hardcoded approximations and may not strictly adhere to the latest official manual guidelines. 
 
