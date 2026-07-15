@@ -18,3 +18,7 @@ Please note that this is a personal utility and has not been rigorously tested.
 2. Click **Convert Numbers to Tags**. All numbers in the text will become short-form tags based on the reference list.
 3. **Edit** the manuscript. Move paragraphs around, delete citations, or type in new tags.
 4. Click **Convert Tags to Numbers**. The tool will reassign numbers chronologically (1, 2, 3...) based on the new order of appearance and generate a sorted reference list to match.
+
+## Limitations & Known Issues
+
+* **Citation Parsing:** The logic for parsing numbered citations is dependent on the use of the hyphen character '-'. The use of and en-dash or em-dash are not recognized, so these characters must be converted to hyphens before processing the text by this tool.
