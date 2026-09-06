@@ -22,7 +22,7 @@ Procedure:
 4.  Under Output Format, select APA 7th
 
 Expected Output (Library Output):
-Smith, John; Doe, Jane (2020). A Study of Stars. Journal of Astronomy. doi:10.1234/ast.2020
+Smith, John, & Doe, Jane (2020). A Study of Stars. Journal of Astronomy, 5, 10–20. https://doi.org/10.1234/ast.2020
 
 Test Case 1.2: Style Switching to IEEE
 
@@ -32,7 +32,7 @@ Procedure:
 1.  Under Output Format, select IEEE.
 
 Expected Output:
-[1] Smith, John; Doe, Jane, "A Study of Stars," Journal of Astronomy, 2020.
+[1] Smith, John; Doe, Jane, “A Study of Stars,” Journal of Astronomy 5: 10–20, 2020. doi:10.1234/ast.2020
 
 Test Case 1.3: Batch Parsing - Raw Text Fallback and Long Author Lists
 
@@ -100,7 +100,7 @@ Expected Reference List:
 
 3. Smith, J. (2020). The sky.
 
-Test Case 2.3: Convert Numbers to Tags - Pre-1900 Dates (Assigns n.d.)
+Test Case 2.3: Convert Numbers to Tags - Pre-1900 Dates (full year support)
 
 Input Document Body:
 Early logic [1] and philosophy [2] laid the groundwork.
@@ -114,14 +114,14 @@ Procedure:
 2.  Click button Convert Numbers to Tags.
 
 Expected Document Body:
-Early logic [Boole n.d.] and philosophy [Waddell n.d.] laid the groundwork.
+Early logic [Boole 1847] and philosophy [Waddell 1894] laid the groundwork.
 
 Expected Reference List:
-[Boole n.d.] Boole, G. The Mathematical Analysis of Logic; London, UK, 1847.
+[Boole 1847] Boole, G. The Mathematical Analysis of Logic; London, UK, 1847.
 
-[Waddell n.d.] Waddell, W.W. The Parmenides of Plato; Glasgow, UK, 1894.
+[Waddell 1894] Waddell, W.W. The Parmenides of Plato; Glasgow, UK, 1894.
 
-(Note: Validates that years outside the 1900-2099 regex bounds default to n.d.).
+(Note: Years 1000-2999 are recognized since v2; en/em-dashes in ranges are also normalized to hyphens).
 
 Test Case 2.4: Convert Numbers to Tags - Tag Collision Resolution
 
@@ -211,3 +211,12 @@ Expected Reference List:
 1. Evans, R.; et al. Can Neural Networks Understand Logical Entailment?
 
 (Note: Verifies that tags present in the document body but missing from the reference list are left intact alongside condensed numbers).
+
+Test Case 1.4: BibTeX Nested Braces
+Input: @article{k, author={{Smith}, John}, title={{Nested} braces}, year={2020}}
+Expected: 1 entry, authors="Smith, John", title="Nested braces", year="2020".
+
+Test Case 2.8: En-dash Range Expansion
+Input Body: Water is wet [2–3].
+Input Refs: same as 2.1.
+Expected Body: Water is wet [Doe 2019; Johnson 2021]. (en-dash normalized)
