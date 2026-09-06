@@ -28,7 +28,7 @@
         }
         h1 { margin-bottom: 5px; color: #2c3e50; text-align: center; }
         p.subtitle { margin-bottom: 20px; color: #7f8c8d; text-align: center; }
-        
+
         .container {
             width: 100%;
             max-width: 1200px;
@@ -42,15 +42,15 @@
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        .grid-2 { 
-            display: grid; 
-            grid-template-columns: 3fr 2fr; 
-            gap: 20px; 
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 20px;
         }
         @media (max-width: 800px) {
             .grid-2 { grid-template-columns: 1fr; }
         }
-        
+
         label { display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50; font-size: 16px;}
         textarea {
             width: 100%;
@@ -64,7 +64,7 @@
         }
         #docBody { min-height: 400px; }
         #refList { min-height: 400px; white-space: pre-wrap; }
-        
+
         .toolbar {
             display: flex;
             justify-content: space-between;
@@ -76,7 +76,7 @@
             border-radius: 8px;
             border: 1px dashed var(--primary);
         }
-        
+
         .controls, .file-controls {
             display: flex;
             gap: 10px;
@@ -103,7 +103,7 @@
         button.accent:hover { background-color: #219653; }
         button.secondary { background-color: var(--secondary); padding: 10px 15px; font-size: 14px;}
         button.secondary:hover { background-color: var(--secondary-hover); }
-        
+
         .instructions {
             background: #fff8e1;
             padding: 15px;
@@ -113,285 +113,348 @@
             margin-bottom: 5px;
             line-height: 1.5;
         }
+        .status { font-size: 13px; color: #2c3e50; margin-top: 8px; min-height: 18px; }
+        .error { color: #c0392b; font-size: 13px; margin-top: 6px; }
+        .row-btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     </style>
 </head>
 <body>
 
     <h1>Pro Citation Renumbering Tool</h1>
     <p class="subtitle">Interconvert numbered citations and short-form tags for easy editing.</p>
-    
+
     <div class="container">
         <div class="instructions">
             <strong>Workflow:</strong><br>
             1. Paste the manuscript text and numbered references into the boxes below.<br>
             2. Click <strong>1. Convert Numbers to Tags</strong>. This replaces [1, 2] with [Smith 2020; Doe 2019].<br>
             3. Rearrange, add, or delete text in the manuscript as needed.<br>
-	    4. Click <strong>2. Convert Tags to Numbers</strong>. This reassigns numbers chronologically and re-sorts the reference list. <em>(Unused references will be safely moved to the bottom of the list).</em><br><br>
-            <strong>Note on Duplicate Years:</strong> If an author has multiple papers in the same year, the tool prevents tag collisions by generating sequential tags like <code>[Smith 2020]</code> and <code>[Smith 2020a]</code>. For strict adherence to formal styles (like APA or Chicago), manually adjust these to <code>[Smith 2020a]</code> and <code>[Smith 2020b]</code> prior to the final export.
+            4. Click <strong>2. Convert Tags to Numbers</strong>. This reassigns numbers chronologically and re-sorts the reference list. <em>(Unused references are appended at the bottom in original order).</em><br><br>
+            <strong>Notes:</strong> Ranges accept hyphens, en-dashes (–), em-dashes (—) and minus signs. Years 1000–2999 are recognized (e.g. 1847, 1894 work). Duplicate author-year tags get suffixes a, b, c…
         </div>
 
         <div class="toolbar">
             <div class="controls">
-                <button onclick="convertToTags()">1. Convert Numbers to Tags</button>
-                <button class="accent" onclick="convertToNumbers()">2. Convert Tags to Numbers</button>
+                <button id="toTagsBtn">1. Convert Numbers to Tags</button>
+                <button class="accent" id="toNumsBtn">2. Convert Tags to Numbers</button>
+                <button class="secondary" id="undoBtn">Undo</button>
             </div>
             <div class="file-controls">
-                <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="importData(event)">
-                <button class="secondary" onclick="document.getElementById('fileInput').click()">Load JSON</button>
-                <button class="secondary" onclick="exportData()">Save JSON</button>
+                <input type="file" id="fileInput" accept=".json,application/json" style="display: none;">
+                <button class="secondary" id="loadBtn">Load JSON</button>
+                <button class="secondary" id="saveBtn">Save JSON</button>
             </div>
         </div>
+        <div class="status" id="statusBar" role="status"></div>
+        <div class="error" id="errorBar" role="alert"></div>
 
         <div class="grid-2">
             <div class="card">
                 <label for="docBody">Document Body Text</label>
-                <textarea id="docBody" placeholder="Paste the essay/paper body here... Example: The sky is blue [1]. Water is wet [2-4]."></textarea>
+                <textarea id="docBody" placeholder="Paste the essay/paper body here... Example: The sky is blue [1]. Water is wet [2–4]."></textarea>
+                <div class="row-btns">
+                    <button class="secondary" id="copyBodyBtn">Copy Body</button>
+                    <button class="secondary" id="clearBodyBtn">Clear</button>
+                </div>
             </div>
             <div class="card">
                 <label for="refList">Reference List</label>
                 <textarea id="refList" placeholder="Paste the references here...&#10;&#10;1. Smith, J. (2020). The sky.&#10;2. Doe, A. (2019). Water properties.&#10;3. Johnson, B. (2021). Liquids.&#10;4. Lee, C. (2018). Oceans."></textarea>
+                <div class="row-btns">
+                    <button class="secondary" id="copyRefsBtn">Copy Refs</button>
+                    <button class="secondary" id="clearRefsBtn">Clear</button>
+                </div>
             </div>
         </div>
     </div>
 
 <script>
-    function exportData() {
-        const data = {
+'use strict';
+const YEAR_RE = /\b((?:1[0-9]{3}|2[0-9]{3}))\b/;
+const DASH_RE = /[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g;
+const NUM_CITATION_RE = /\[([0-9\s,;\-\u2010\u2011\u2012\u2013\u2014\u2015\u2212]+)\]/g;
+const AUTOSAVE_KEY = 'citation_renumberer_data';
+let historyStack = [];
+
+function normalizeDashes(s) { return String(s).replace(DASH_RE, '-'); }
+function setStatus(m) { document.getElementById('statusBar').textContent = m || ''; }
+function setError(m) { document.getElementById('errorBar').textContent = m || ''; }
+function pushHistory() {
+    historyStack.push({
+        docBody: document.getElementById('docBody').value,
+        refList: document.getElementById('refList').value
+    });
+    if (historyStack.length > 20) historyStack.shift();
+}
+function undo() {
+    const prev = historyStack.pop();
+    if (!prev) { setStatus('Nothing to undo.'); return; }
+    document.getElementById('docBody').value = prev.docBody;
+    document.getElementById('refList').value = prev.refList;
+    autosave(); setStatus('Undone.');
+}
+function autosave() {
+    try {
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
             docBody: document.getElementById('docBody').value,
             refList: document.getElementById('refList').value
-        };
-        
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'citation_data.json';
-        document.body.appendChild(a);
-        a.click();
-        
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        }));
+    } catch (e) {}
+}
+function restoreAutosave() {
+    try {
+        const raw = localStorage.getItem(AUTOSAVE_KEY);
+        if (!raw) return;
+        const d = JSON.parse(raw);
+        if (typeof d.docBody === 'string') document.getElementById('docBody').value = d.docBody;
+        if (typeof d.refList === 'string') document.getElementById('refList').value = d.refList;
+    } catch (e) {}
+}
+
+function exportData() {
+    const data = {
+        docBody: document.getElementById('docBody').value,
+        refList: document.getElementById('refList').value
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'citation_data.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            pushHistory();
+            if (data.docBody !== undefined) document.getElementById('docBody').value = String(data.docBody);
+            if (data.refList !== undefined) document.getElementById('refList').value = String(data.refList);
+            autosave(); setStatus('JSON loaded.');
+        } catch (err) { setError('The selected file is not valid JSON from this tool.'); }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+function expandRanges(citationStr) {
+    const numbers = [];
+    const clean = normalizeDashes(citationStr);
+    for (const part of clean.split(',')) {
+        const p = part.trim().replace(/;/g, '');
+        if (!p) continue;
+        if (p.includes('-')) {
+            const bounds = p.split('-').map(s => s.trim());
+            const start = parseInt(bounds[0], 10);
+            const end = parseInt(bounds[1], 10);
+            if (!isNaN(start) && !isNaN(end) && start <= end && end - start < 10000) {
+                for (let i = start; i <= end; i++) numbers.push(i);
+            } else if (!isNaN(start)) numbers.push(start);
+        } else {
+            const num = parseInt(p, 10);
+            if (!isNaN(num)) numbers.push(num);
+        }
+    }
+    return numbers;
+}
+
+function condenseNumbers(numArray) {
+    if (!numArray || numArray.length === 0) return '';
+    const nums = [...new Set(numArray)].map(Number).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+    if (!nums.length) return '';
+    const result = [];
+    let temp = [nums[0]];
+    for (let i = 1; i < nums.length; i++) {
+        if (nums[i] === nums[i - 1] + 1) temp.push(nums[i]);
+        else {
+            result.push(temp.length > 2 ? `${temp[0]}-${temp[temp.length - 1]}` : temp.join(', '));
+            temp = [nums[i]];
+        }
+    }
+    result.push(temp.length > 2 ? `${temp[0]}-${temp[temp.length - 1]}` : temp.join(', '));
+    return result.join(', ');
+}
+
+function extractAuthor(refString) {
+    let cleanText = String(refString || '')
+        .replace(/^\[?\d+\]?[.\)]?\s*/, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/^["'“‘\(\s]+/, '').trim();
+    // Institutional author up to first comma/semicolon/paren/year
+    const head = cleanText.split(/[,;(\[]/)[0].trim();
+    let token = (head.split(/\s+/)[0] || '').replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9'\-]+$/g, '');
+    if (!token) token = 'Ref';
+    return token.slice(0, 40);
+}
+
+function generateTag(refString, existingTags) {
+    const yearMatch = String(refString).match(YEAR_RE);
+    const year = yearMatch ? yearMatch[1] : 'n.d.';
+    const author = extractAuthor(refString);
+    const baseTag = `${author} ${year}`;
+    let tag = baseTag;
+    let counter = 97; // 'a'
+    while (existingTags.has(tag)) {
+        tag = `${baseTag}${String.fromCharCode(counter)}`;
+        counter++;
+        if (counter > 122) { tag = `${baseTag}-${counter}`; break; }
+    }
+    existingTags.add(tag);
+    return tag;
+}
+
+function convertToTags() {
+    setError('');
+    const body = document.getElementById('docBody').value;
+    const refs = document.getElementById('refList').value;
+    if (!body.trim() || !refs.trim()) { setError('Please provide both Body Text and a Reference List.'); return; }
+
+    const refBlocks = refs.split(/\n(?=\s*\[?\d+\]?[.\)]?\s)/).filter(b => b.trim().length > 0);
+    const numToTagMap = {};
+    const taggedRefsOutput = [];
+    const existingTags = new Set();
+
+    refBlocks.forEach(block => {
+        const match = block.match(/^\s*\[?(\d+)\]?[.\)]?\s*([\s\S]*)/);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            const content = match[2].trim();
+            const tag = generateTag(content, existingTags);
+            numToTagMap[num] = tag;
+            taggedRefsOutput.push(`[${tag}] ${content}`);
+        } else {
+            taggedRefsOutput.push(block.trim());
+        }
+    });
+
+    if (Object.keys(numToTagMap).length === 0) {
+        setError('No numbered references found. References must start with numbers.');
+        return;
     }
 
-    function importData(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+    pushHistory();
+    const newBody = body.replace(NUM_CITATION_RE, (match, inner) => {
+        const innerClean = inner.replace(/;/g, ',');
+        const numbers = expandRanges(innerClean);
+        if (!numbers.length) return match;
+        const tags = numbers.map(n => (n in numToTagMap) ? numToTagMap[n] : String(n));
+        return `[${tags.join('; ')}]`;
+    });
 
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const data = JSON.parse(e.target.result);
-                if (data.docBody !== undefined) document.getElementById('docBody').value = data.docBody;
-                if (data.refList !== undefined) document.getElementById('refList').value = data.refList;
-            } catch (err) {
-                alert("Error: The selected file is not a valid JSON generated by this tool.");
-            }
-        };
-        reader.readAsText(file);
-        
-        event.target.value = '';
+    document.getElementById('docBody').value = newBody;
+    document.getElementById('refList').value = taggedRefsOutput.join('\n\n');
+    autosave();
+    setStatus(`Converted ${Object.keys(numToTagMap).length} references to tags.`);
+}
+
+function normalizeTag(t) {
+    if (!t) return '';
+    return String(t).replace(DASH_RE, '-').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+function convertToNumbers() {
+    setError('');
+    const body = document.getElementById('docBody').value;
+    const refs = document.getElementById('refList').value;
+    if (!body.trim() || !refs.trim()) { setError('Please provide both Body Text and a Reference List.'); return; }
+
+    const refBlocks = refs.split(/\n+(?=\s*\[[^\]]+\])/).filter(b => b.trim().length > 0);
+    const tagToContentMap = {};
+    const tagOrder = [];
+    const untaggedLines = [];
+
+    refBlocks.forEach(block => {
+        const match = block.match(/^\s*\[([^\]]+)\]\s*([\s\S]*)/);
+        if (match) {
+            const normTag = normalizeTag(match[1]);
+            if (!(normTag in tagToContentMap)) tagOrder.push(normTag);
+            tagToContentMap[normTag] = match[2].trim();
+        } else {
+            untaggedLines.push(block.trim());
+        }
+    });
+
+    if (Object.keys(tagToContentMap).length === 0) {
+        setError('No tags found! Reference list must use [Author Year] format.');
+        return;
     }
 
-    function expandRanges(citationStr) {
-        let numbers = [];
-        let parts = citationStr.split(',');
-        for (let part of parts) {
-            part = part.trim();
-            if (part.includes('-')) {
-                let bounds = part.split('-');
-                let start = parseInt(bounds[0]);
-                let end = parseInt(bounds[1]);
-                if (!isNaN(start) && !isNaN(end) && start <= end) {
-                    for (let i = start; i <= end; i++) numbers.push(i);
-                } else if (!isNaN(start)) {
-                    numbers.push(start);
+    pushHistory();
+    const finalOrderedRefs = [];
+    const tagToNewNumMap = {};
+    let currentNum = 1;
+
+    const newBody = body.replace(/\[([^\]]+)\]/g, (match, inner) => {
+        const originalTags = inner.split(/[;,]/).map(t => t.trim()).filter(Boolean);
+        if (!originalTags.length) return match;
+        const normTags = originalTags.map(normalizeTag);
+        const isCitation = normTags.some(t => t in tagToContentMap);
+        if (!isCitation) return match;
+
+        const newNumbers = [];
+        const unmapped = [];
+        normTags.forEach((normTag, index) => {
+            if (normTag in tagToContentMap) {
+                if (!(normTag in tagToNewNumMap)) {
+                    tagToNewNumMap[normTag] = currentNum;
+                    finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[normTag] });
+                    currentNum++;
                 }
+                newNumbers.push(tagToNewNumMap[normTag]);
             } else {
-                let num = parseInt(part);
-                if (!isNaN(num)) numbers.push(num);
-            }
-        }
-        return numbers;
-    }
-
-    function condenseNumbers(numArray) {
-        if (!numArray || numArray.length === 0) return "";
-        numArray = [...new Set(numArray)].map(Number).sort((a, b) => a - b);
-        if (numArray.length === 0) return "";
-
-        let result = [];
-        let temp = [numArray[0]];
-        
-        for (let i = 1; i < numArray.length; i++) {
-            if (numArray[i] === numArray[i - 1] + 1) {
-                temp.push(numArray[i]);
-            } else {
-                result.push(temp.length > 2 ? `${temp[0]}-${temp[temp.length - 1]}` : temp.join(", "));
-                temp = [numArray[i]];
-            }
-        }
-        result.push(temp.length > 2 ? `${temp[0]}-${temp[temp.length - 1]}` : temp.join(", "));
-        return result.join(", ");
-    }
-
-    function generateTag(refString, existingTags) {
-        const yearMatch = refString.match(/\b(19|20)\d{2}\b/);
-        const year = yearMatch ? yearMatch[0] : "n.d.";
-        
-        let cleanText = refString.replace(/^\[?\d+\]?[\.\)]?\s*/, '')
-                                 .replace(/<[^>]+>/g, '')
-                                 .replace(/^["'“‘\s]+/, '');
-        
-        const authorMatch = cleanText.match(/^([^\s,\.]+)/);
-        const author = authorMatch ? authorMatch[1] : "Ref";
-
-        let baseTag = `${author} ${year}`;
-        let tag = baseTag;
-        let counter = 97; 
-        
-        while (existingTags.has(tag)) {
-            tag = `${baseTag}${String.fromCharCode(counter)}`;
-            counter++;
-        }
-        existingTags.add(tag);
-        return tag;
-    }
-
-    function convertToTags() {
-        let body = document.getElementById('docBody').value;
-        let refs = document.getElementById('refList').value;
-
-        if (!body.trim() || !refs.trim()) {
-            alert("Please provide both Body Text and a Reference List.");
-            return;
-        }
-
-        let refBlocks = refs.split(/\n(?=\s*\[?\d+\]?[\.\)]?\s)/).filter(b => b.trim().length > 0);
-        let numToTagMap = {};
-        let taggedRefsOutput = [];
-        let existingTags = new Set();
-
-        refBlocks.forEach(block => {
-            let match = block.match(/^\s*\[?(\d+)\]?[\.\)]?\s*([\s\S]*)/);
-            if (match) {
-                let num = parseInt(match[1]);
-                let content = match[2].trim();
-                let tag = generateTag(content, existingTags);
-                numToTagMap[num] = tag;
-                taggedRefsOutput.push(`[${tag}] ${content}`);
-            } else {
-                taggedRefsOutput.push(block.trim());
+                unmapped.push(originalTags[index]);
             }
         });
 
-        if (Object.keys(numToTagMap).length === 0) {
-            alert("No numbered references found. Verify references start with numbers before converting to tags.");
-            return; 
+        let citationStr = condenseNumbers(newNumbers);
+        if (unmapped.length > 0) {
+            citationStr = citationStr ? citationStr + '; ' + unmapped.join('; ') : unmapped.join('; ');
         }
+        return `[${citationStr}]`;
+    });
 
-        let newBody = body.replace(/\[([0-9\s,\-;]+)\]/g, (match, inner) => {
-            let innerClean = inner.replace(/;/g, ','); 
-            let numbers = expandRanges(innerClean);
-            let tags = numbers.map(n => numToTagMap[n] ? numToTagMap[n] : n);
-            return `[${tags.join("; ")}]`;
-        });
-
-        document.getElementById('docBody').value = newBody;
-        document.getElementById('refList').value = taggedRefsOutput.join('\n\n');
+    for (const normTag of tagOrder) {
+        if (!(normTag in tagToNewNumMap)) {
+            tagToNewNumMap[normTag] = currentNum;
+            finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[normTag] });
+            currentNum++;
+        }
     }
 
-    function convertToNumbers() {
-        let body = document.getElementById('docBody').value;
-        let refs = document.getElementById('refList').value;
+    let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
+    if (untaggedLines.length > 0) numberedRefsOutput = numberedRefsOutput.concat(untaggedLines);
 
-        if (!body.trim() || !refs.trim()) {
-            alert("Please provide both Body Text and a Reference List.");
-            return;
-        }
+    document.getElementById('docBody').value = newBody;
+    document.getElementById('refList').value = numberedRefsOutput.join('\n\n');
+    autosave();
+    setStatus(`Renumbered ${finalOrderedRefs.length} references in order of appearance.`);
+}
 
-        // Split on one or more newlines followed by a bracketed tag
-        // This safely handles both single-spaced and double-spaced reference lists
-        let refBlocks = refs.split(/\n+(?=\s*\[[^\]]+\])/).filter(b => b.trim().length > 0);
-        let tagToContentMap = {};
-        let untaggedLines = [];
-        
-        function normalizeTag(t) {
-            if (!t) return "";
-            return t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        }
+window.addEventListener('DOMContentLoaded', () => {
+    restoreAutosave();
+    document.getElementById('toTagsBtn').onclick = convertToTags;
+    document.getElementById('toNumsBtn').onclick = convertToNumbers;
+    document.getElementById('undoBtn').onclick = undo;
+    document.getElementById('saveBtn').onclick = exportData;
+    document.getElementById('loadBtn').onclick = () => document.getElementById('fileInput').click();
+    document.getElementById('fileInput').onchange = importData;
+    document.getElementById('copyBodyBtn').onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById('docBody').value);
+    document.getElementById('copyRefsBtn').onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById('refList').value);
+    document.getElementById('clearBodyBtn').onclick = () => { pushHistory(); document.getElementById('docBody').value = ''; autosave(); };
+    document.getElementById('clearRefsBtn').onclick = () => { pushHistory(); document.getElementById('refList').value = ''; autosave(); };
+    document.getElementById('docBody').addEventListener('input', autosave);
+    document.getElementById('refList').addEventListener('input', autosave);
+});
 
-        refBlocks.forEach(block => {
-            let match = block.match(/^\s*\[([^\]]+)\]\s*([\s\S]*)/);
-            if (match) {
-                let normTag = normalizeTag(match[1]);
-                tagToContentMap[normTag] = match[2].trim();
-            } else {
-                untaggedLines.push(block.trim()); 
-            }
-        });
-
-        if (Object.keys(tagToContentMap).length === 0) {
-            alert("No tags found in the reference list! Ensure the text is in 'Tag' format (e.g., [Smith 2020]) before converting to numbers.");
-            return; 
-        }
-
-        let finalOrderedRefs = [];
-        let tagToNewNumMap = {};
-        let currentNum = 1;
-
-        let newBody = body.replace(/\[([^\]]+)\]/g, (match, inner) => {
-            let originalTags = inner.split(/[;,]/).map(t => t.trim());
-            let normTags = originalTags.map(normalizeTag);
-            
-            let isCitation = normTags.some(t => t in tagToContentMap);
-            if (!isCitation) return match; 
-
-            let newNumbers = [];
-            let unmapped = []; 
-            
-            normTags.forEach((normTag, index) => {
-                if (normTag in tagToContentMap) {
-                    if (!(normTag in tagToNewNumMap)) {
-                        tagToNewNumMap[normTag] = currentNum;
-                        finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[normTag] });
-                        currentNum++;
-                    }
-                    newNumbers.push(tagToNewNumMap[normTag]);
-                } else {
-                    unmapped.push(originalTags[index]);
-                }
-            });
-
-            let citationStr = condenseNumbers(newNumbers);
-            
-            if (unmapped.length > 0) {
-                if (citationStr) citationStr += "; " + unmapped.join("; ");
-                else citationStr = unmapped.join("; ");
-            }
-
-            return `[${citationStr}]`;
-        });
-
-        for (let normTag in tagToContentMap) {
-            if (!(normTag in tagToNewNumMap)) {
-                tagToNewNumMap[normTag] = currentNum;
-                finalOrderedRefs.push({ num: currentNum, text: tagToContentMap[normTag] });
-                currentNum++;
-            }
-        }
-
-        let numberedRefsOutput = finalOrderedRefs.map(r => `${r.num}. ${r.text}`);
-
-        if (untaggedLines.length > 0) {
-            numberedRefsOutput = numberedRefsOutput.concat(untaggedLines);
-        }
-
-        // Joins with \n\n to correctly match the expected unit test output format
-        document.getElementById('docBody').value = newBody;
-        document.getElementById('refList').value = numberedRefsOutput.join('\n\n');
-    }
+// Expose for tests
+window.convertToTags = convertToTags; window.convertToNumbers = convertToNumbers;
+window.expandRanges = expandRanges; window.condenseNumbers = condenseNumbers;
+window.generateTag = generateTag; window.normalizeTag = normalizeTag;
+window.extractAuthor = extractAuthor;
 </script>
 </body>
 </html>
-

@@ -21,4 +21,4 @@ Please note that this is a personal utility and has not been rigorously tested.
 
 ## Limitations & Known Issues
 
-* **Citation Parsing:** The logic for parsing numbered citations is dependent on the use of the hyphen character '-'. The use of and en-dash or em-dash are not recognized, so these characters must be converted to hyphens before processing the text by this tool.
+* Years 1000–2999 are recognized; undated items use `n.d.`.
