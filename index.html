@@ -56,7 +56,7 @@
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        
+
         label { display: block; font-weight: 600; margin-bottom: 5px; margin-top: 15px; }
         input[type="text"], textarea, select {
             width: 100%;
@@ -81,7 +81,8 @@
         button.secondary { background-color: #7f8c8d; }
         button.accent { background-color: var(--accent); }
         button.small { padding: 5px 10px; font-size: 13px; margin-top: 5px;}
-        
+        button:disabled { opacity: .6; cursor: default; }
+
         .result-item, .bib-item {
             padding: 15px;
             border: 1px solid var(--border);
@@ -91,10 +92,13 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 12px;
         }
-        .result-text { flex: 1; margin-right: 15px; line-height: 1.5; }
+        .result-text { flex: 1; margin-right: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+        .btn-group { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; }
         .controls-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
-        
+        .search-filter { max-width: 260px; }
+
         #customFormatContainer {
             width: 100%;
             background: #eef2f5;
@@ -119,9 +123,12 @@
         .tag-btn:hover { background: var(--primary); color: white; }
 
         .loading { color: var(--primary); font-weight: bold; display: none; margin-top: 10px;}
+        .hint { font-size: 13px; color: #666; margin-top: 6px; }
+        .error { color: #c0392b; font-size: 13px; margin-top: 6px; }
         hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
-        
+
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
         .type-badge {
             font-size: 10px;
             text-transform: uppercase;
@@ -135,75 +142,83 @@
 <body>
 
     <h1>Pro Bibliography Manager</h1>
-    
+
     <div class="container">
         <div class="card">
             <div class="tabs">
-                <div class="tab active" onclick="switchTab('search')">1. Smart Search</div>
-                <div class="tab" onclick="switchTab('batch')">2. Batch / BibTeX</div>
-                <div class="tab" onclick="switchTab('manual')">3. Manual Entry</div>
+                <div class="tab active" data-tab="search">1. Smart Search</div>
+                <div class="tab" data-tab="batch">2. Batch / BibTeX</div>
+                <div class="tab" data-tab="manual">3. Manual Entry</div>
             </div>
 
             <div id="tab-search" class="tab-content active">
                 <p>Search CrossRef (Press Enter to search).</p>
-                <input type="text" id="searchInput" placeholder="DOI or Title..." onkeydown="if(event.key==='Enter') searchCrossRef()">
-                <button onclick="searchCrossRef()">Search</button>
+                <input type="text" id="searchInput" placeholder="DOI or Title...">
+                <button id="searchBtn">Search</button>
                 <div id="searchLoading" class="loading">Searching...</div>
+                <div id="searchError" class="error" role="alert"></div>
                 <div id="searchResults"></div>
             </div>
 
             <div id="tab-batch" class="tab-content">
                 <p>Paste a list of references <b>OR</b> raw BibTeX code (e.g. from Google Scholar).</p>
                 <textarea id="batchInput" placeholder="@article{...} or Doe, J. (2020)..."></textarea>
-                <div style="display:flex; gap: 10px;">
-                    <button onclick="parseBatch()">Process Text</button>
-                    <button class="secondary" onclick="document.getElementById('bibFileInput').click()">Upload .bib File</button>
-                    <input type="file" id="bibFileInput" style="display:none" accept=".bib" onchange="importBibFile(event)">
+                <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="batchBtn">Process Text</button>
+                    <button class="secondary" id="bibUploadBtn">Upload .bib File</button>
+                    <input type="file" id="bibFileInput" style="display:none" accept=".bib,.txt" >
                 </div>
+                <div id="batchError" class="error" role="alert"></div>
             </div>
 
             <div id="tab-manual" class="tab-content">
                 <label>Reference Type</label>
-                <select id="m_type" onchange="toggleManualFields()">
+                <select id="m_type">
                     <option value="journal">Journal Article</option>
                     <option value="book">Book</option>
                     <option value="web">Web Site</option>
                     <option value="conference">Conference Proceeding</option>
                 </select>
 
-                <label>Authors (comma separated)</label>
+                <label>Authors (comma or semicolon separated)</label>
                 <input type="text" id="m_authors" placeholder="Smith J, Doe A">
-                
+
                 <div class="grid-2">
-                    <div><label>Year</label><input type="text" id="m_year"></div>
-                    <div><label>Title</label><input type="text" id="m_title"></div>
-                    <div class="f-journal f-conf"><label id="lbl_container">Journal/Container</label><input type="text" id="m_journal"></div>
+                    <div><label>Year</label><input type="text" id="m_year" placeholder="2020"></div>
+                    <div><label>Title *</label><input type="text" id="m_title"></div>
+                    <div class="f-journal f-conference"><label id="lbl_container">Journal/Container</label><input type="text" id="m_journal"></div>
                     <div class="f-journal"><label>Volume</label><input type="text" id="m_volume"></div>
                     <div class="f-journal"><label>Issue</label><input type="text" id="m_issue"></div>
-                    <div class="f-journal f-conf"><label>Pages</label><input type="text" id="m_pages"></div>
+                    <div class="f-journal f-conference"><label>Pages</label><input type="text" id="m_pages"></div>
                     <div class="f-book" style="display:none;"><label>Publisher</label><input type="text" id="m_publisher"></div>
                     <div class="f-book" style="display:none;"><label>City</label><input type="text" id="m_city"></div>
                     <div class="f-web" style="display:none;"><label>URL</label><input type="text" id="m_url"></div>
                     <div style="grid-column: span 2;"><label>DOI</label><input type="text" id="m_doi"></div>
                 </div>
-                <button onclick="addManual()">Add to Library</button>
+                <div id="manualError" class="error" role="alert"></div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button id="manualBtn">Add to Library</button>
+                    <button id="manualCancelBtn" class="secondary" style="display:none;">Cancel Edit</button>
+                </div>
             </div>
         </div>
 
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <h2>Bibliography Library (<span id="libCount">0</span>)</h2>
-                <div style="display: flex; gap: 5px;">
-                    <button class="small secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
-                    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importJSON(event)">
-                    <button class="small accent" onclick="exportJSON()">Export JSON</button>
+                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button class="small secondary" id="importJsonBtn">Import JSON</button>
+                    <input type="file" id="importFile" style="display:none" accept=".json,application/json">
+                    <button class="small accent" id="exportJsonBtn">Export JSON</button>
+                    <button class="small secondary" id="exportBibBtn">Export BibTeX</button>
+                    <button class="small secondary" id="copyAllBtn">Copy All</button>
                 </div>
             </div>
 
             <div class="controls-row">
                 <div>
                     <label>Sort By</label>
-                    <select id="sortSelect" onchange="renderLibrary()">
+                    <select id="sortSelect">
                         <option value="year-desc">Year (Newest)</option>
                         <option value="year-asc">Year (Oldest)</option>
                         <option value="author-asc">Author (A-Z)</option>
@@ -211,7 +226,7 @@
                 </div>
                 <div>
                     <label>Output Format</label>
-                    <select id="formatSelect" onchange="handleFormatChange()">
+                    <select id="formatSelect">
                         <option value="apa">APA 7th</option>
                         <option value="mla">MLA 9th</option>
                         <option value="chicago">Chicago</option>
@@ -220,336 +235,663 @@
                         <option value="custom">⚙️ Create/Edit Template...</option>
                     </select>
                 </div>
-                <button class="secondary" style="margin-left:auto;" onclick="clearLibrary()">Clear All</button>
+                <div class="search-filter">
+                    <label>Filter Library</label>
+                    <input type="text" id="filterInput" placeholder="Filter by author, title, year...">
+                </div>
+                <button class="secondary" style="margin-left:auto;" id="clearBtn">Clear All</button>
             </div>
-            
+
             <div id="customFormatContainer" style="display: none;">
                 <label style="margin-top: 0;">Template Editor:</label>
-                <div class="tag-cloud">
-                    <span class="tag-btn" onclick="insertTag('authors')">{authors}</span>
-                    <span class="tag-btn" onclick="insertTag('year')">{year}</span>
-                    <span class="tag-btn" onclick="insertTag('title')">{title}</span>
-                    <span class="tag-btn" onclick="insertTag('journal')">{journal}</span>
-                    <span class="tag-btn" onclick="insertTag('volume')">{volume}</span>
-                    <span class="tag-btn" onclick="insertTag('pages')">{pages}</span>
-                    <span class="tag-btn" onclick="insertTag('publisher')">{publisher}</span>
-                    <span class="tag-btn" onclick="insertTag('doi')">{doi}</span>
-                </div>
-                <input type="text" id="customFormatInput" placeholder="Example: {authors} ({year}). {title}. <i>{journal}</i>" oninput="renderLibrary()">
-                <div class="template-manager">
+                <div class="tag-cloud" id="tagCloud"></div>
+                <input type="text" id="customFormatInput" placeholder="Example: {authors} ({year}). {title}. {journal}">
+                <div class="template-manager" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
                     <input type="text" id="templateName" placeholder="Style Name" style="width: 200px;">
-                    <button class="small" onclick="saveTemplate()">Save Template</button>
+                    <button class="small" id="saveTemplateBtn">Save Template</button>
+                    <button class="small secondary" id="deleteTemplateBtn">Delete Template</button>
                 </div>
+                <p class="hint">Allowed tags: {authors} {year} {title} {journal} {volume} {issue} {pages} {publisher} {city} {url} {doi} {type}. Only &lt;i&gt; formatting is preserved; all other HTML is escaped.</p>
             </div>
-            
+
             <hr>
             <div id="libraryOutput"></div>
         </div>
     </div>
 
 <script>
-    let bibData = {
-        items: [],
-        templates: {
-            "Simple Journal": "{authors} ({year}). {title}. <i>{journal}</i>, {volume}."
-        }
-    };
+'use strict';
+const STORAGE_KEY = 'bib_manager_data';
+const ALLOWED_TEMPLATE_TAGS = new Set(['authors','year','title','journal','volume','issue','pages','publisher','city','url','doi','type']);
+const YEAR_RE = /\b((?:1[0-9]{3}|2[0-9]{3}))\b/;
 
-    window.onload = () => {
-        const saved = localStorage.getItem('bib_manager_data');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                bibData.items = parsed.items || [];
-                bibData.templates = parsed.templates || bibData.templates;
-            } catch(e) { console.error("Failed to load saved data"); }
+let bibData = {
+    items: [],
+    templates: {
+        "Simple Journal": "{authors} ({year}). {title}. {journal}, {volume}."
+    }
+};
+let searchCache = [];
+let editingId = null;
+
+function genId() {
+    if (window.crypto && crypto.randomUUID) return 'id-' + crypto.randomUUID();
+    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+}
+
+function safeCitationHtml(raw) {
+    // Escape everything, then re-allow <i> and </i> only.
+    return escapeHtml(raw)
+        .replace(/&lt;(\/?i)&gt;/g, '<$1>');
+}
+
+function cleanBraces(val) {
+    // Remove outer wrapping braces/quotes repeatedly, keep inner content.
+    let v = String(val || '').trim();
+    for (let i = 0; i < 3; i++) {
+        if ((v.startsWith('{') && v.endsWith('}')) || (v.startsWith('"') && v.endsWith('"'))) {
+            v = v.slice(1, -1).trim();
+        } else break;
+    }
+    // Collapse LaTeX protective braces: {{Nested}} -> Nested ; {John} -> John
+    v = v.replace(/[{}]/g, '');
+    // Common LaTeX escapes
+    v = v.replace(/\\&/g, '&').replace(/---/g, '—').replace(/--/g, '–')
+         .replace(/``/g, '“').replace(/''/g, '”');
+    return v.replace(/\s+/g, ' ').trim();
+}
+
+function splitBibTeXEntries(text) {
+    const entries = [];
+    let i = 0;
+    while (i < text.length) {
+        const at = text.indexOf('@', i);
+        if (at === -1) break;
+        const braceOpen = text.indexOf('{', at);
+        if (braceOpen === -1) break;
+        let depth = 0, end = -1;
+        for (let j = braceOpen; j < text.length; j++) {
+            if (text[j] === '{') depth++;
+            else if (text[j] === '}') {
+                depth--;
+                if (depth === 0) { end = j; break; }
+            }
         }
+        if (end === -1) break; // unbalanced -> stop
+        entries.push(text.slice(at, end + 1));
+        i = end + 1;
+    }
+    return entries;
+}
+
+function splitTopLevelFields(body) {
+    const fields = [];
+    let depth = 0, inQuote = false, cur = '';
+    for (let k = 0; k < body.length; k++) {
+        const ch = body[k];
+        if (ch === '"' && body[k-1] !== '\\' && depth === 0) { inQuote = !inQuote; cur += ch; continue; }
+        if (!inQuote) {
+            if (ch === '{') depth++;
+            if (ch === '}') depth--;
+            if (ch === ',' && depth === 0) { fields.push(cur); cur = ''; continue; }
+        }
+        cur += ch;
+    }
+    if (cur.trim()) fields.push(cur);
+    return fields;
+}
+
+function parseBibTeX(text) {
+    const entries = [];
+    for (const raw of splitBibTeXEntries(text)) {
+        const head = raw.match(/@(\w+)\s*\{\s*([^,]+),/);
+        if (!head) continue;
+        const btype = head[1].toLowerCase();
+        const body = raw.slice(raw.indexOf(',', raw.indexOf('{')) + 1, raw.lastIndexOf('}'));
+        const entry = { id: genId(), type: 'journal' };
+        if (btype === 'book') entry.type = 'book';
+        else if (btype === 'inproceedings' || btype === 'proceedings' || btype === 'conference') entry.type = 'conference';
+        else if (btype === 'misc' || btype === 'online' || btype === 'electronic' || btype === 'www') entry.type = 'web';
+
+        for (const f of splitTopLevelFields(body)) {
+            const eq = f.indexOf('=');
+            if (eq === -1) continue;
+            const key = f.slice(0, eq).trim().toLowerCase();
+            const val = cleanBraces(f.slice(eq + 1).trim());
+            if (!val) continue;
+            if (key === 'author' || key === 'editor') entry.authors = val.replace(/\s+and\s+/gi, '; ');
+            else if (key === 'title') entry.title = val;
+            else if (key === 'year') entry.year = (val.match(/\d{4}/) || [''])[0];
+            else if (key === 'journal' || key === 'booktitle' || key === 'journaltitle') entry.journal = val;
+            else if (key === 'volume') entry.volume = val;
+            else if (key === 'number') entry.issue = val;
+            else if (key === 'pages') entry.pages = val.replace(/--?/g, '–');
+            else if (key === 'doi') entry.doi = val.replace(/^doi:\s*/i, '');
+            else if (key === 'publisher') entry.publisher = val;
+            else if (key === 'address') entry.city = val;
+            else if (key === 'url' || key === 'howpublished') {
+                const u = val.match(/https?:\/\/\S+/);
+                entry.url = u ? u[0] : val;
+            }
+        }
+        if (entry.title || entry.authors || entry.doi) entries.push(entry);
+    }
+    return entries;
+}
+
+function normalizeAuthorsForDisplay(authors) {
+    if (!authors) return '';
+    return String(authors).split(/;\s*/).map(s => s.trim()).filter(Boolean).join('; ');
+}
+
+function isDuplicate(ref) {
+    const norm = s => String(s || '').toLowerCase().trim();
+    return bibData.items.some(e => {
+        if (ref.doi && e.doi && norm(ref.doi) === norm(e.doi)) return true;
+        return norm(e.title) === norm(ref.title) && norm(e.authors) === norm(ref.authors) && norm(e.year) === norm(ref.year);
+    });
+}
+
+function formatAuthorsAPA(authors) {
+    const list = String(authors || '').split(/;\s*/).map(s => s.trim()).filter(Boolean);
+    if (!list.length) return 'Unknown';
+    if (list.length > 20) return list.slice(0, 19).join(', ') + ', ... ' + list[list.length - 1];
+    if (list.length === 1) return list[0];
+    return list.slice(0, -1).join(', ') + ', & ' + list[list.length - 1];
+}
+
+function formatStandard(ref, style, index) {
+    const authors = normalizeAuthorsForDisplay(ref.authors) || 'Unknown';
+    const year = ref.year || 'n.d.';
+    const title = ref.title || 'Untitled';
+    const container = ref.journal || ref.publisher || '';
+    const vol = ref.volume ? (style === 'apa' ? `, ${ref.volume}` : ` ${ref.volume}`) : '';
+    const issue = ref.issue ? `(${ref.issue})` : '';
+    const pages = ref.pages ? (style === 'ieee' ? `: ${ref.pages}` : `, ${ref.pages}`) : '';
+    const doi = ref.doi ? (style === 'apa' ? ` https://doi.org/${ref.doi.replace(/^https?:\/\/(dx\.)?doi\.org\//, '')}` : ` doi:${ref.doi}`) : '';
+    const url = ref.url && !ref.doi ? ` Retrieved from ${ref.url}` : '';
+
+    if (style === 'apa') {
+        return `${formatAuthorsAPA(authors)} (${year}). ${title}.${container ? ` ${container}${vol}${issue}${pages}.` : ''}${doi}${url}`;
+    }
+    if (style === 'ieee') {
+        return `[${index + 1}] ${authors}, “${title},” ${container}${vol}${issue}${pages}, ${year}.${doi}`;
+    }
+    if (style === 'mla') {
+        return `${authors}. “${title}.” ${container}${vol ? `, vol. ${ref.volume}` : ''}${ref.issue ? `, no. ${ref.issue}` : ''}, ${year}${ref.pages ? `, pp. ${ref.pages}` : ''}.${doi}`;
+    }
+    if (style === 'chicago') {
+        return `${authors}. ${year}. “${title}.” ${container}${vol ? ` ${ref.volume}` : ''}${ref.issue ? `, no. ${ref.issue}` : ''}${ref.pages ? `: ${ref.pages}` : ''}.${doi}`;
+    }
+    return `${authors} (${year}). “${title}”. ${container}.`;
+}
+
+function applyTemplate(ref, template) {
+    let str = String(template).replace(/\{(\w+)\}/g, (m, key) => {
+        if (!ALLOWED_TEMPLATE_TAGS.has(key)) return m;
+        return (ref[key] || '').trim();
+    });
+    str = str.replace(/<[^>]+>\s*<\/[^>]+>/g, '')
+             .replace(/\(\s*\)/g, '')
+             .replace(/[,;:]\s*(?=[.,;])/g, '')
+             .replace(/\.\s*\./g, '.')
+             .replace(/\s+([.,;:])/g, '$1')
+             .replace(/\s{2,}/g, ' ')
+             .replace(/^[.,\s]+|[.,\s]+$/g, '');
+    return str;
+}
+
+// ---- storage ----
+function saveToStorage() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(bibData)); }
+    catch (e) { console.warn('Storage unavailable:', e); }
+}
+function loadFromStorage() {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.items)) bibData.items = parsed.items.filter(x => x && typeof x === 'object');
+        if (parsed.templates && typeof parsed.templates === 'object') bibData.templates = parsed.templates;
+    } catch (e) { console.error('Failed to load saved data'); }
+}
+
+// ---- UI wiring ----
+function switchTab(tabId) {
+    document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+    const tab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+    if (tab) tab.classList.add('active');
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+}
+
+function toggleManualFields() {
+    const type = document.getElementById('m_type').value;
+    const map = { journal: 'f-journal', book: 'f-book', web: 'f-web', conference: 'f-conference' };
+    document.querySelectorAll('.f-journal, .f-book, .f-web, .f-conference').forEach(el => {
+        const show = Object.entries(map).some(([t, cls]) => t === type && el.classList.contains(cls));
+        el.style.display = show ? 'block' : 'none';
+    });
+}
+
+function updateFormatDropdown() {
+    const group = document.getElementById('customStylesGroup');
+    group.innerHTML = '';
+    for (const name in bibData.templates) {
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        group.appendChild(opt);
+    }
+}
+
+function buildTagCloud() {
+    const cloud = document.getElementById('tagCloud');
+    cloud.innerHTML = '';
+    [...ALLOWED_TEMPLATE_TAGS].forEach(tag => {
+        const s = document.createElement('span');
+        s.className = 'tag-btn'; s.textContent = `{${tag}}`;
+        s.onclick = () => insertTag(tag);
+        cloud.appendChild(s);
+    });
+}
+
+function insertTag(tag) {
+    const input = document.getElementById('customFormatInput');
+    input.value += `{${tag}}`;
+    renderLibrary();
+}
+
+function handleFormatChange() {
+    const val = document.getElementById('formatSelect').value;
+    const container = document.getElementById('customFormatContainer');
+    if (val === 'custom') {
+        container.style.display = 'block';
+        if (!document.getElementById('customFormatInput').value)
+            document.getElementById('customFormatInput').value = '{authors} ({year}). {title}. {journal}.';
+    } else if (bibData.templates[val]) {
+        container.style.display = 'block';
+        document.getElementById('customFormatInput').value = bibData.templates[val];
+        document.getElementById('templateName').value = val;
+    } else {
+        container.style.display = 'none';
+    }
+    renderLibrary();
+}
+
+function saveTemplate() {
+    const name = document.getElementById('templateName').value.trim();
+    const str = document.getElementById('customFormatInput').value.trim();
+    if (!name || !str) return;
+    bibData.templates[name] = str;
+    updateFormatDropdown();
+    document.getElementById('formatSelect').value = name;
+    saveToStorage();
+}
+
+function deleteTemplate() {
+    const name = document.getElementById('templateName').value.trim();
+    if (name && bibData.templates[name]) {
+        delete bibData.templates[name];
         updateFormatDropdown();
-        toggleManualFields();
-        renderLibrary();
-    };
-
-    function saveToStorage() {
-        localStorage.setItem('bib_manager_data', JSON.stringify(bibData));
-    }
-
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
-        document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
-        document.getElementById(`tab-${tabId}`).classList.add('active');
-    }
-
-    function toggleManualFields() {
-        const type = document.getElementById('m_type').value;
-        const grids = ['f-journal', 'f-book', 'f-web', 'f-conf'];
-        grids.forEach(g => {
-            document.querySelectorAll('.' + g).forEach(el => {
-                el.style.display = el.classList.contains('f-' + type) ? 'block' : 'none';
-            });
-        });
-    }
-
-    function parseBibTeX(text) {
-        const entries = [];
-        const regex = /@(\w+)\s*\{\s*([^,]+),([\s\S]*?)\n\s*\}/g;
-        let match;
-
-        while ((match = regex.exec(text)) !== null) {
-            const type = match[1].toLowerCase();
-            const content = match[3];
-            const entry = { id: Date.now() + Math.random().toString(), type: 'journal' };
-            
-            if (type === 'book') entry.type = 'book';
-            if (type === 'inproceedings' || type === 'proceedings') entry.type = 'conference';
-
-            const fieldRegex = /(\w+)\s*=\s*[{\"](.*?)[}\"]/g;
-            let fMatch;
-            while ((fMatch = fieldRegex.exec(content)) !== null) {
-                const key = fMatch[1].toLowerCase();
-                let val = fMatch[2].replace(/[\{\}]/g, "");
-                
-                if (key === 'author') entry.authors = val.replace(/\s+and\s+/g, "; ");
-                else if (key === 'title') entry.title = val;
-                else if (key === 'year') entry.year = val;
-                else if (key === 'journal' || key === 'booktitle') entry.journal = val;
-                else if (key === 'volume') entry.volume = val;
-                else if (key === 'number') entry.issue = val;
-                else if (key === 'pages') entry.pages = val;
-                else if (key === 'doi') entry.doi = val;
-                else if (key === 'publisher') entry.publisher = val;
-            }
-            entries.push(entry);
-        }
-        return entries;
-    }
-
-    function importBibFile(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const bibs = parseBibTeX(e.target.result);
-            if (bibs.length > 0) {
-                bibData.items = [...bibData.items, ...bibs];
-                saveToStorage();
-                renderLibrary();
-                alert(`Imported ${bibs.length} BibTeX entries!`);
-            } else {
-                alert("No valid BibTeX found in file.");
-            }
-        };
-        reader.readAsText(file);
-    }
-
-    function parseBatch() {
-        const text = document.getElementById('batchInput').value;
-        if (text.includes('@')) {
-            const bibs = parseBibTeX(text);
-            bibData.items = [...bibData.items, ...bibs];
-        } else {
-            const blocks = text.match(/^\s*\[?\d+\]?[\.\)]?\s/m) 
-                ? text.split(/\n(?=\s*\[?\d+\]?[\.\)]?\s)/) 
-                : text.split(/\n\s*\n/);
-                
-            blocks.forEach(block => {
-                let cleanBlock = block.replace(/\n/g, ' ').trim();
-                if (cleanBlock.length > 5) {
-                    let year = (cleanBlock.match(/\b(19|20)\d{2}\b/) || [''])[0];
-                    let authorMatch = cleanBlock.replace(/^\[?\d+\]?[\.\)]?\s*/, '').split(/[(\.]/)[0];
-                    bibData.items.push({
-                        id: Date.now() + Math.random().toString(),
-                        type: 'journal', 
-                        authors: authorMatch ? authorMatch.trim() : "Unknown",
-                        year: year, 
-                        title: "Parsed (Please Edit)", 
-                        journal: cleanBlock
-                    });
-                }
-            });
-        }
+        document.getElementById('formatSelect').value = 'apa';
+        handleFormatChange();
         saveToStorage();
-        renderLibrary();
     }
+}
 
-    function insertTag(tag) {
-        const input = document.getElementById('customFormatInput');
-        input.value += `{${tag}}`;
-        renderLibrary();
-    }
-
-    function handleFormatChange() {
-        const val = document.getElementById('formatSelect').value;
-        const container = document.getElementById('customFormatContainer');
-        if (val === 'custom') {
-            container.style.display = 'block';
-        } else if (bibData.templates[val]) {
-            container.style.display = 'block';
-            document.getElementById('customFormatInput').value = bibData.templates[val];
-            document.getElementById('templateName').value = val;
-        } else {
-            container.style.display = 'none';
-        }
-        renderLibrary();
-    }
-
-    function saveTemplate() {
-        const name = document.getElementById('templateName').value.trim();
-        const str = document.getElementById('customFormatInput').value.trim();
-        if(!name || !str) return;
-        bibData.templates[name] = str;
-        updateFormatDropdown();
-        document.getElementById('formatSelect').value = name;
-        saveToStorage();
-        alert("Style saved locally.");
-    }
-
-    function updateFormatDropdown() {
-        const group = document.getElementById('customStylesGroup');
-        group.innerHTML = '';
-        for (let name in bibData.templates) {
-            let opt = document.createElement('option');
-            opt.value = name; opt.innerText = name;
-            group.appendChild(opt);
-        }
-    }
-
-    async function searchCrossRef() {
-        const query = document.getElementById('searchInput').value.trim();
-        if(!query) return;
-        const loading = document.getElementById('searchLoading');
-        const resultsDiv = document.getElementById('searchResults');
-        loading.style.display = 'block'; resultsDiv.innerHTML = '';
-
-        try {
-            const response = await fetch(`https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(query)}&rows=5`);
-            const data = await response.json();
-            data.message.items.forEach(item => {
-                const refObj = mapCrossRefToInternal(item);
-                const div = document.createElement('div');
-                div.className = 'result-item';
-                div.innerHTML = `
-                    <div class="result-text"><strong>${refObj.title}</strong><br><small>${refObj.authors} (${refObj.year})</small></div>
-                    <button class="small" onclick='addToLibrary(${JSON.stringify(refObj).replace(/'/g, "&#39;")})'>Add</button>`;
-                resultsDiv.appendChild(div);
-            });
-        } catch (e) { resultsDiv.innerHTML = `<p>Search failed.</p>`; }
-        finally { loading.style.display = 'none'; }
-    }
-
-    function mapCrossRefToInternal(item) {
-        return {
-            id: Date.now() + Math.random().toString(),
-            type: item.type?.includes("book") ? "book" : "journal",
-            authors: (item.author || []).map(a => `${a.family}, ${a.given || ''}`).join('; ') || 'Unknown',
-            year: item.issued?.['date-parts']?.[0]?.[0] || 'n.d.',
-            title: item.title?.[0] || 'Untitled',
-            journal: item['container-title']?.[0] || '',
-            volume: item.volume || '', issue: item.issue || '', pages: item.page || '',
-            doi: item.DOI || '', publisher: item.publisher || ''
-        };
-    }
-
-    function addManual() {
-        const ref = {
-            id: Date.now() + Math.random().toString(),
-            type: document.getElementById('m_type').value,
-            authors: document.getElementById('m_authors').value,
-            year: document.getElementById('m_year').value,
-            title: document.getElementById('m_title').value,
-            journal: document.getElementById('m_journal').value,
-            volume: document.getElementById('m_volume').value,
-            issue: document.getElementById('m_issue').value,
-            pages: document.getElementById('m_pages').value,
-            publisher: document.getElementById('m_publisher').value,
-            doi: document.getElementById('m_doi').value
-        };
-        addToLibrary(ref);
-    }
-
-    function addToLibrary(obj) { 
-        bibData.items.push(obj); 
-        saveToStorage(); 
-        renderLibrary(); 
-    }
-
-    function removeRef(id) { 
-        bibData.items = bibData.items.filter(r => r.id !== id); 
-        saveToStorage(); 
-        renderLibrary(); 
-    }
-
-    function clearLibrary() { 
-        if(confirm("Delete all data?")) { bibData.items = []; saveToStorage(); renderLibrary(); } 
-    }
-
-    function renderLibrary() {
-        document.getElementById('libCount').innerText = bibData.items.length;
-        const output = document.getElementById('libraryOutput');
-        output.innerHTML = '';
-
-        const sortVal = document.getElementById('sortSelect').value;
-        bibData.items.sort((a, b) => {
-            if (sortVal === 'year-desc') return (parseInt(b.year) || 0) - (parseInt(a.year) || 0);
-            if (sortVal === 'year-asc') return (parseInt(a.year) || 0) - (parseInt(b.year) || 0);
-            return (a.authors || "").localeCompare(b.authors || "");
-        });
-
-        const formatStyle = document.getElementById('formatSelect').value;
-
-        bibData.items.forEach((ref, index) => {
-            let str = '';
-            if (formatStyle === 'custom' || bibData.templates[formatStyle]) {
-                let template = document.getElementById('customFormatInput').value;
-                str = template.replace(/{(\w+)}/g, (m, key) => ref[key] ? ref[key].trim() : '');
-                str = str.replace(/<[^>]+>\s*<\/[^>]+>/g, '')
-                         .replace(/\(\s*\)/g, '')
-                         .replace(/[,;:]\s*(?=[.,;])/g, '')
-                         .replace(/\.\s*\./g, '.')
-                         .replace(/\s+([.,;:])/g, '$1')
-                         .replace(/\s{2,}/g, ' ')
-                         .replace(/^[.,\s]+|[.,\s]+$/g, '');
-            } else {
-                str = formatStandard(ref, formatStyle, index);
-            }
+// ---- CrossRef ----
+async function searchCrossRef() {
+    const query = document.getElementById('searchInput').value.trim();
+    const err = document.getElementById('searchError');
+    err.textContent = '';
+    if (!query) return;
+    const loading = document.getElementById('searchLoading');
+    const resultsDiv = document.getElementById('searchResults');
+    loading.style.display = 'block'; resultsDiv.innerHTML = '';
+    try {
+        const isDoi = /^10\.\d{4,}\//.test(query);
+        const url = isDoi
+            ? `https://api.crossref.org/works/${encodeURIComponent(query)}?mailto=bibmanager@local`
+            : `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(query)}&rows=5&mailto=bibmanager@local`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        const items = isDoi ? [data.message] : data.message.items;
+        searchCache = items.map(mapCrossRefToInternal);
+        if (!searchCache.length) { resultsDiv.innerHTML = '<p>No results.</p>'; return; }
+        searchCache.forEach((refObj, idx) => {
             const div = document.createElement('div');
-            div.className = 'bib-item';
-            div.innerHTML = `<div class="result-text">${str}</div><button class="small secondary" onclick="removeRef('${ref.id}')">Remove</button>`;
-            output.appendChild(div);
+            div.className = 'result-item';
+            const txt = document.createElement('div');
+            txt.className = 'result-text';
+            const strong = document.createElement('strong');
+            strong.textContent = refObj.title;
+            const small = document.createElement('small');
+            small.textContent = `${refObj.authors} (${refObj.year})${refObj.doi ? ' — ' + refObj.doi : ''}`;
+            txt.appendChild(strong); txt.appendChild(document.createElement('br')); txt.appendChild(small);
+            const btn = document.createElement('button');
+            btn.className = 'small'; btn.textContent = 'Add'; btn.dataset.idx = idx;
+            btn.onclick = () => addToLibrary(searchCache[Number(btn.dataset.idx)]);
+            div.appendChild(txt); div.appendChild(btn);
+            resultsDiv.appendChild(div);
         });
-    }
+    } catch (e) { err.textContent = 'Search failed. Check connection or try a DOI directly.'; }
+    finally { loading.style.display = 'none'; }
+}
 
-    function formatStandard(ref, style, index) {
-        if (style === 'apa') {
-            return `${ref.authors} (${ref.year}). ${ref.title}. <i>${ref.journal || ref.publisher}</i>. ${ref.doi ? 'doi:'+ref.doi : ''}`;
-        } 
-        if (style === 'ieee') {
-            return `[${index+1}] ${ref.authors}, "${ref.title}", <i>${ref.journal || ref.publisher}</i>, ${ref.year}.`;
+function mapCrossRefToInternal(item) {
+    const iss = item.issued && item.issued['date-parts'] && item.issued['date-parts'][0] && item.issued['date-parts'][0][0];
+    return {
+        id: genId(),
+        type: (item.type && item.type.includes('book')) ? 'book' : (item.type && item.type.includes('proceedings') ? 'conference' : 'journal'),
+        authors: (item.author || []).map(a => [a.family, a.given].filter(Boolean).join(', ')).join('; ') || 'Unknown',
+        year: iss ? String(iss) : 'n.d.',
+        title: (item.title && item.title[0]) || 'Untitled',
+        journal: (item['container-title'] && item['container-title'][0]) || (item['event'] && item['event'].name) || '',
+        volume: item.volume || '', issue: item.issue || '', pages: item.page || '',
+        doi: item.DOI || '', publisher: item.publisher || '', url: item.URL || ''
+    };
+}
+
+// ---- batch ----
+function importBibFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        addParsedEntries(parseBibTeX(String(e.target.result)), 'file');
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+function parseBatch() {
+    const err = document.getElementById('batchError');
+    err.textContent = '';
+    const text = document.getElementById('batchInput').value;
+    if (!text.trim()) { err.textContent = 'Paste BibTeX or references first.'; return; }
+    if (text.includes('@')) {
+        addParsedEntries(parseBibTeX(text), 'text');
+    } else {
+        const blocks = /^\s*\[?\d+\]?[.\)]?\s/m.test(text)
+            ? text.split(/\n(?=\s*\[?\d+\]?[.\)]?\s)/)
+            : text.split(/\n\s*\n/);
+        let added = 0;
+        blocks.forEach(block => {
+            const cleanBlock = block.replace(/\n/g, ' ').trim();
+            if (cleanBlock.length > 5) {
+                const year = (cleanBlock.match(YEAR_RE) || [''])[0];
+                const authorMatch = cleanBlock.replace(/^\[?\d+\]?[.\)]?\s*/, '').split(/[(.]/)[0];
+                const ref = {
+                    id: genId(), type: 'journal',
+                    authors: authorMatch ? authorMatch.trim().slice(0, 200) : 'Unknown',
+                    year, title: 'Parsed (Please Edit)', journal: cleanBlock.slice(0, 2000)
+                };
+                if (!isDuplicate(ref)) { bibData.items.push(ref); added++; }
+            }
+        });
+        saveToStorage(); renderLibrary();
+    }
+}
+
+function addParsedEntries(bibs, source) {
+    const err = document.getElementById('batchError');
+    let added = 0, skipped = 0;
+    bibs.forEach(b => { if (isDuplicate(b)) skipped++; else { bibData.items.push(b); added++; } });
+    saveToStorage(); renderLibrary();
+    if (!bibs.length) err.textContent = 'No valid BibTeX found in ' + source + '.';
+    else if (skipped) err.textContent = `Imported ${added}, skipped ${skipped} duplicate(s).`;
+}
+
+// ---- manual ----
+function addManual() {
+    const err = document.getElementById('manualError');
+    err.textContent = '';
+    const title = document.getElementById('m_title').value.trim();
+    if (!title) { err.textContent = 'Title is required.'; return; }
+    const ref = {
+        id: editingId || genId(),
+        type: document.getElementById('m_type').value,
+        authors: document.getElementById('m_authors').value.trim(),
+        year: document.getElementById('m_year').value.trim(),
+        title,
+        journal: document.getElementById('m_journal').value.trim(),
+        volume: document.getElementById('m_volume').value.trim(),
+        issue: document.getElementById('m_issue').value.trim(),
+        pages: document.getElementById('m_pages').value.trim(),
+        publisher: document.getElementById('m_publisher').value.trim(),
+        city: document.getElementById('m_city').value.trim(),
+        url: document.getElementById('m_url').value.trim(),
+        doi: document.getElementById('m_doi').value.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//, '')
+    };
+    if (editingId) {
+        const i = bibData.items.findIndex(r => r.id === editingId);
+        if (i >= 0) bibData.items[i] = ref;
+        editingId = null;
+        document.getElementById('manualBtn').textContent = 'Add to Library';
+        document.getElementById('manualCancelBtn').style.display = 'none';
+    } else {
+        if (isDuplicate(ref)) { err.textContent = 'Possible duplicate: same title/author/year or DOI already exists.'; return; }
+        bibData.items.push(ref);
+    }
+    ['m_authors','m_year','m_title','m_journal','m_volume','m_issue','m_pages','m_publisher','m_city','m_url','m_doi'].forEach(id => document.getElementById(id).value = '');
+    saveToStorage(); renderLibrary();
+    switchTab('manual');
+}
+
+function startEdit(id) {
+    const ref = bibData.items.find(r => r.id === id);
+    if (!ref) return;
+    editingId = id;
+    document.getElementById('m_type').value = ref.type || 'journal';
+    toggleManualFields();
+    document.getElementById('m_authors').value = ref.authors || '';
+    document.getElementById('m_year').value = ref.year || '';
+    document.getElementById('m_title').value = ref.title || '';
+    document.getElementById('m_journal').value = ref.journal || '';
+    document.getElementById('m_volume').value = ref.volume || '';
+    document.getElementById('m_issue').value = ref.issue || '';
+    document.getElementById('m_pages').value = ref.pages || '';
+    document.getElementById('m_publisher').value = ref.publisher || '';
+    document.getElementById('m_city').value = ref.city || '';
+    document.getElementById('m_url').value = ref.url || '';
+    document.getElementById('m_doi').value = ref.doi || '';
+    document.getElementById('manualBtn').textContent = 'Save Changes';
+    document.getElementById('manualCancelBtn').style.display = '';
+    switchTab('manual');
+}
+
+function cancelEdit() {
+    editingId = null;
+    document.getElementById('manualBtn').textContent = 'Add to Library';
+    document.getElementById('manualCancelBtn').style.display = 'none';
+}
+
+function addToLibrary(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    if (!obj.id) obj.id = genId();
+    if (isDuplicate(obj)) return;
+    bibData.items.push(obj);
+    saveToStorage();
+    renderLibrary();
+}
+
+function removeRef(id) {
+    bibData.items = bibData.items.filter(r => r.id !== id);
+    saveToStorage();
+    renderLibrary();
+}
+
+function clearLibrary() {
+    if (confirm('Delete all data?')) { bibData.items = []; saveToStorage(); renderLibrary(); }
+}
+
+// ---- render ----
+function getSortedFiltered() {
+    const sortVal = document.getElementById('sortSelect').value;
+    const q = document.getElementById('filterInput').value.trim().toLowerCase();
+    const arr = bibData.items.filter(r => {
+        if (!q) return true;
+        return [r.authors, r.title, r.journal, r.year, r.doi, r.publisher].some(v => String(v || '').toLowerCase().includes(q));
+    });
+    arr.sort((a, b) => {
+        if (sortVal === 'year-desc') return (parseInt(b.year) || 0) - (parseInt(a.year) || 0);
+        if (sortVal === 'year-asc') return (parseInt(a.year) || 0) - (parseInt(b.year) || 0);
+        return String(a.authors || '').localeCompare(String(b.authors || ''));
+    });
+    return arr;
+}
+
+function renderLibrary() {
+    const output = document.getElementById('libraryOutput');
+    output.innerHTML = '';
+    const list = getSortedFiltered();
+    document.getElementById('libCount').textContent = `${list.length}/${bibData.items.length}`;
+    const formatStyle = document.getElementById('formatSelect').value;
+
+    list.forEach((ref) => {
+        const globalIndex = bibData.items.indexOf(ref);
+        let str = '';
+        if (formatStyle === 'custom' || bibData.templates[formatStyle]) {
+            str = applyTemplate(ref, document.getElementById('customFormatInput').value);
+        } else {
+            str = formatStandard(ref, formatStyle, globalIndex);
         }
-        return `${ref.authors} (${ref.year}). "${ref.title}". ${ref.journal || ref.publisher}.`;
-    }
+        const div = document.createElement('div');
+        div.className = 'bib-item';
+        const txt = document.createElement('div');
+        txt.className = 'result-text';
+        const badge = document.createElement('span');
+        badge.className = 'type-badge'; badge.textContent = ref.type || 'ref';
+        const span = document.createElement('span');
+        span.innerHTML = safeCitationHtml(str);
+        txt.appendChild(badge); txt.appendChild(document.createTextNode(' ')); txt.appendChild(span);
+        const btns = document.createElement('div');
+        btns.className = 'btn-group';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'small secondary'; copyBtn.textContent = 'Copy';
+        copyBtn.onclick = () => navigator.clipboard && navigator.clipboard.writeText(span.textContent);
+        const editBtn = document.createElement('button');
+        editBtn.className = 'small'; editBtn.textContent = 'Edit';
+        editBtn.onclick = () => startEdit(ref.id);
+        const delBtn = document.createElement('button');
+        delBtn.className = 'small secondary'; delBtn.textContent = 'Remove';
+        delBtn.onclick = () => removeRef(ref.id);
+        btns.appendChild(copyBtn); btns.appendChild(editBtn); btns.appendChild(delBtn);
+        div.appendChild(txt); div.appendChild(btns);
+        output.appendChild(div);
+    });
+}
 
+// ---- export/import ----
+function downloadFile(name, content, type) {
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 
-    function exportJSON() {
-        const blob = new Blob([JSON.stringify(bibData, null, 2)], {type : 'application/json'});
-        const anchor = document.createElement('a');
-        anchor.href = URL.createObjectURL(blob);
-        anchor.download = "bibliography_export.json";
-        anchor.click();
-    }
+function exportJSON() {
+    downloadFile('bibliography_export.json', JSON.stringify(bibData, null, 2), 'application/json');
+}
 
-    function importJSON(event) {
-        const file = event.target.files[0];
-        const reader = new FileReader();
-        reader.onload = (e) => {
+function bibEntryFor(ref) {
+    const typeMap = { journal: 'article', book: 'book', conference: 'inproceedings', web: 'misc' };
+    const key = (String(ref.authors || 'ref').split(/[;,]/)[0].trim().replace(/\W+/g, '') + (ref.year || 'nd')).toLowerCase().slice(0, 40) || 'ref';
+    const esc = v => String(v || '').replace(/[{}]/g, '');
+    const lines = [`@${typeMap[ref.type] || 'article'}{${key},`];
+    if (ref.authors) lines.push(`  author = {${esc(ref.authors.replace(/;\s*/g, ' and '))}},`);
+    if (ref.title) lines.push(`  title = {${esc(ref.title)}},`);
+    if (ref.journal) lines.push(`  ${ref.type === 'conference' ? 'booktitle' : 'journal'} = {${esc(ref.journal)}},`);
+    if (ref.year) lines.push(`  year = {${esc(ref.year)}},`);
+    if (ref.volume) lines.push(`  volume = {${esc(ref.volume)}},`);
+    if (ref.issue) lines.push(`  number = {${esc(ref.issue)}},`);
+    if (ref.pages) lines.push(`  pages = {${esc(ref.pages)}},`);
+    if (ref.publisher) lines.push(`  publisher = {${esc(ref.publisher)}},`);
+    if (ref.doi) lines.push(`  doi = {${esc(ref.doi)}},`);
+    if (ref.url) lines.push(`  url = {${esc(ref.url)}},`);
+    lines.push('}');
+    return lines.join('\n');
+}
+
+function exportBibTeX() {
+    downloadFile('bibliography_export.bib', bibData.items.map(bibEntryFor).join('\n\n'), 'text/plain');
+}
+
+function copyAll() {
+    const list = getSortedFiltered();
+    const formatStyle = document.getElementById('formatSelect').value;
+    const lines = list.map((ref, i) => {
+        if (formatStyle === 'custom' || bibData.templates[formatStyle])
+            return applyTemplate(ref, document.getElementById('customFormatInput').value);
+        return formatStandard(ref, formatStyle, i).replace(/<[^>]+>/g, '');
+    });
+    if (navigator.clipboard) navigator.clipboard.writeText(lines.join('\n\n'));
+}
+
+function importJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
             const data = JSON.parse(e.target.result);
-            bibData = data;
-            saveToStorage();
-            updateFormatDropdown();
-            renderLibrary();
-        };
-        reader.readAsText(file);
-    }
+            if (!data || !Array.isArray(data.items)) throw new Error('bad schema');
+            bibData.items = data.items.filter(x => x && typeof x === 'object');
+            if (data.templates && typeof data.templates === 'object') bibData.templates = data.templates;
+            saveToStorage(); updateFormatDropdown(); renderLibrary();
+        } catch (err) { alert('Invalid JSON backup file.'); }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    loadFromStorage();
+    updateFormatDropdown();
+    buildTagCloud();
+    toggleManualFields();
+    renderLibrary();
+    document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+    document.getElementById('searchBtn').onclick = searchCrossRef;
+    document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchCrossRef(); });
+    document.getElementById('batchBtn').onclick = parseBatch;
+    document.getElementById('bibUploadBtn').onclick = () => document.getElementById('bibFileInput').click();
+    document.getElementById('bibFileInput').onchange = importBibFile;
+    document.getElementById('m_type').onchange = toggleManualFields;
+    document.getElementById('manualBtn').onclick = addManual;
+    document.getElementById('manualCancelBtn').onclick = cancelEdit;
+    document.getElementById('sortSelect').onchange = renderLibrary;
+    document.getElementById('formatSelect').onchange = handleFormatChange;
+    document.getElementById('filterInput').oninput = renderLibrary;
+    document.getElementById('customFormatInput').oninput = renderLibrary;
+    document.getElementById('saveTemplateBtn').onclick = saveTemplate;
+    document.getElementById('deleteTemplateBtn').onclick = deleteTemplate;
+    document.getElementById('clearBtn').onclick = clearLibrary;
+    document.getElementById('exportJsonBtn').onclick = exportJSON;
+    document.getElementById('exportBibBtn').onclick = exportBibTeX;
+    document.getElementById('copyAllBtn').onclick = copyAll;
+    document.getElementById('importJsonBtn').onclick = () => document.getElementById('importFile').click();
+    document.getElementById('importFile').onchange = importJSON;
+});
+
+// Expose for tests / legacy inline handlers
+window.switchTab = switchTab; window.searchCrossRef = searchCrossRef;
+window.parseBatch = parseBatch; window.importBibFile = importBibFile;
+window.addManual = addManual; window.addToLibrary = addToLibrary;
+window.removeRef = removeRef; window.clearLibrary = clearLibrary;
+window.renderLibrary = renderLibrary; window.exportJSON = exportJSON;
+window.importJSON = importJSON; window.insertTag = insertTag;
+window.handleFormatChange = handleFormatChange; window.saveTemplate = saveTemplate;
+window.parseBibTeX = parseBibTeX; window.formatStandard = formatStandard;
+window.applyTemplate = applyTemplate;
 </script>
 </body>
 </html>
-

@@ -7,7 +7,7 @@ A lightweight, single-file HTML5/JavaScript application for managing academic bi
 
 **⚠️ Project Status: Experimental / Untested**
 Please note that this is a personal utility and has **not** been rigorously tested. 
-* The BibTeX parser relies on basic regular expressions and will likely fail on complex, nested, or non-standard LaTeX formatting. 
+* **BibTeX parser:** Balanced-brace parser handles nested `{{...}}`, quoted values, and `booktitle`/`url`/`address` fields. Very exotic LaTeX macros may still need cleanup.
 * Data is saved exclusively to the browser's `localStorage`. If the browser cache is cleared, then the data will be deleted. **Always use the "Export JSON" feature to back up the library.**
 * Expect bugs, particularly with edge cases in citation formatting.
 
